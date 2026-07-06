@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Dark mode is class-based: toggling `.dark` on <html> flips the palette.
+   The theme store persists the user's choice and respects system preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* --------------------------------------------------------------------------
+   Semantic design tokens. Light defaults live on :root, dark overrides on
+   .dark. The @theme inline block maps them to Tailwind color utilities, so
+   `bg-surface`, `text-muted`, `border-line`, etc. all respond to the theme.
+   -------------------------------------------------------------------------- */
+:root {
+  --bg: #f7f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f2f7;
+  --line: #e4e4ec;
+  --fg: #1a1726;
+  --muted: #6b6779;
+  --primary: #6d5efc;
+  --primary-fg: #ffffff;
+  --accent: #ec4899;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --ring: rgba(109, 94, 252, 0.4);
+}
+
+.dark {
+  --bg: #0d0c12;
+  --surface: #16151d;
+  --surface-2: #1e1d27;
+  --line: #2b2937;
+  --fg: #ececf1;
+  --muted: #9b97aa;
+  --primary: #8b7dff;
+  --primary-fg: #0d0c12;
+  --accent: #f472b6;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --ring: rgba(139, 125, 255, 0.45);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius-xl: 1rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Respect users who prefer reduced motion (accessibility). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Thin, theme-aware scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
