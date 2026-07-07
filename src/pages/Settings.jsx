@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LogOut, Settings as SettingsIcon, SlidersHorizontal } from 'lucide-react';
+import { LogOut, Settings as SettingsIcon, Shield, SlidersHorizontal } from 'lucide-react';
 
 import { get, patch } from '../lib/api';
 import { toast } from '../stores/toastStore';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
+import { MfaDisableSection, MfaSetupModal } from '../components/auth/MfaModals';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Avatar, Button, Card, CardBody, CardHeader, Input, Select } from '../components/ui';
 
@@ -23,6 +24,7 @@ export default function SettingsPage() {
 	const logout = useAuthStore((s) => s.logout);
 	const updateUser = useAuthStore((s) => s.updateUser);
 	const { theme, setTheme } = useThemeStore();
+	const [mfaSetupOpen, setMfaSetupOpen] = useState(false);
 
 	const { data: profile } = useQuery({
 		queryKey: ['profile'],
@@ -100,6 +102,22 @@ export default function SettingsPage() {
 
 				<Card>
 					<CardHeader
+						title="Two-factor authentication"
+						subtitle="Protect your account with an authenticator app"
+					/>
+					<CardBody className="space-y-4">
+						{user?.mfa_enabled ? (
+							<MfaDisableSection />
+						) : (
+							<Button onClick={() => setMfaSetupOpen(true)}>
+								<Shield size={16} /> Enable MFA
+							</Button>
+						)}
+					</CardBody>
+				</Card>
+
+				<Card>
+					<CardHeader
 						title="Prioritization weights"
 						subtitle="How much each factor influences task priority"
 					/>
@@ -169,6 +187,7 @@ export default function SettingsPage() {
 					</CardBody>
 				</Card>
 			</div>
+			<MfaSetupModal open={mfaSetupOpen} onClose={() => setMfaSetupOpen(false)} />
 		</div>
 	);
 }

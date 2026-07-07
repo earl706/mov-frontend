@@ -8,6 +8,10 @@ export const publicRoutes = [
 	{
 		path: '/register',
 		Component: lazy(() => import('./Auth').then((m) => ({ default: m.RegisterPage })))
+	},
+	{
+		path: '/oauth/callback',
+		Component: lazy(() => import('./OAuthCallback'))
 	}
 ];
 
