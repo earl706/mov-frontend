@@ -14,9 +14,9 @@ export const FOCUS_TECHNIQUES = [
 		id: 'pomodoro',
 		label: 'Pomodoro',
 		description: '25 min focus · 5 min break · 15 min long break every 4 rounds',
-		focusSeconds: 25 * 60,
-		shortBreakSeconds: 5 * 60,
-		longBreakSeconds: 15 * 60,
+		focusSeconds: 2 * 60,
+		shortBreakSeconds: 1 * 60,
+		longBreakSeconds: 2 * 60,
 		cyclesBeforeLongBreak: 4
 	},
 	{

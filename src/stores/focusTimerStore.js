@@ -13,10 +13,11 @@ import {
 const DEFAULT_SECONDS = 25 * 60;
 
 function applyDuration(set, total) {
-	const hms = hmsFromSeconds(total);
+	const normalized = Math.max(0, Math.floor(Number(total) || 0));
+	const hms = hmsFromSeconds(normalized);
 	set({
-		totalSeconds: total,
-		remainingSeconds: total,
+		totalSeconds: normalized,
+		remainingSeconds: normalized,
 		inputHours: hms.hours,
 		inputMinutes: hms.minutes,
 		inputSeconds: hms.seconds
@@ -37,6 +38,8 @@ export const useFocusTimerStore = create(
 			inputSeconds: 0,
 			alarmActive: false,
 			alarmStartedAt: null,
+			alarmCompletedPhase: null,
+			pendingAfterAlarm: null,
 			alarmSound: DEFAULT_FOCUS_ALARM_SOUND,
 			techniqueId: FOCUS_TECHNIQUE_FREE,
 			phase: 'focus',
@@ -143,12 +146,44 @@ export const useFocusTimerStore = create(
 				applyDuration(set, tech.focusSeconds);
 			},
 
-			startAlarm: () => set({ alarmActive: true, alarmStartedAt: Date.now() }),
+			startAlarm: (completedPhase) =>
+				set({
+					alarmActive: true,
+					alarmStartedAt: Date.now(),
+					alarmCompletedPhase: completedPhase
+				}),
 
-			dismissAlarm: () => {
+			stopAlarmSound: () => {
 				stopFocusAlarm();
-				set({ alarmActive: false, alarmStartedAt: null });
 			},
+
+			resolveAfterAlarm: () => {
+				stopFocusAlarm();
+				const s = get();
+				const pending = s.pendingAfterAlarm;
+				set({
+					alarmActive: false,
+					alarmStartedAt: null,
+					alarmCompletedPhase: null,
+					pendingAfterAlarm: null
+				});
+				if (pending === 'start_break') {
+					get().advanceToBreak();
+					return 'start_break';
+				}
+				if (pending === 'start_focus') {
+					get().advanceToFocus();
+					get().start();
+					return 'start_focus';
+				}
+				if (pending === 'finish_free') {
+					get().clearAfterFinish();
+					return 'finish_free';
+				}
+				return null;
+			},
+
+			dismissAlarm: () => get().resolveAfterAlarm(),
 
 			setDurationSeconds: (total) => {
 				const s = get();
@@ -230,6 +265,7 @@ export const useFocusTimerStore = create(
 
 			reset: () => {
 				const s = get();
+				stopFocusAlarm();
 				const tech = getTechnique(s.techniqueId);
 				const total = isStructuredTechnique(s.techniqueId)
 					? tech.focusSeconds
@@ -243,7 +279,11 @@ export const useFocusTimerStore = create(
 					startedAt: null,
 					interruptions: 0,
 					phase: 'focus',
-					pomodoroCount: 0
+					pomodoroCount: 0,
+					alarmActive: false,
+					alarmStartedAt: null,
+					alarmCompletedPhase: null,
+					pendingAfterAlarm: null
 				});
 			},
 
@@ -251,7 +291,14 @@ export const useFocusTimerStore = create(
 				const s = get();
 				if (!isStructuredTechnique(s.techniqueId) || s.phase === 'focus') return;
 				stopFocusAlarm();
+				set({
+					alarmActive: false,
+					alarmStartedAt: null,
+					alarmCompletedPhase: null,
+					pendingAfterAlarm: null
+				});
 				get().advanceToFocus();
+				get().start();
 			},
 
 			advanceToBreak: () => {
@@ -286,9 +333,7 @@ export const useFocusTimerStore = create(
 					running: false,
 					endAt: null,
 					startedAt: null,
-					interruptions: 0,
-					alarmActive: false,
-					alarmStartedAt: null
+					interruptions: 0
 				});
 			},
 
@@ -306,13 +351,15 @@ export const useFocusTimerStore = create(
 
 			getSessionPayload: () => {
 				const s = get();
-				const elapsed = Math.max(0, s.totalSeconds - s.remainingSeconds);
-				const actualSeconds = elapsed || s.totalSeconds;
+				const totalSeconds = Math.max(0, Math.floor(Number(s.totalSeconds) || 0));
+				const remainingSeconds = Math.max(0, Math.floor(Number(s.remainingSeconds) || 0));
+				const elapsed = Math.max(0, totalSeconds - remainingSeconds);
+				const actualSeconds = elapsed || totalSeconds;
 				return {
 					startedAt: s.startedAt || new Date().toISOString(),
-					plannedSeconds: s.totalSeconds,
+					plannedSeconds: totalSeconds,
 					actualSeconds,
-					plannedMinutes: Math.floor(s.totalSeconds / 60),
+					plannedMinutes: Math.floor(totalSeconds / 60),
 					actualMinutes: Math.floor(actualSeconds / 60),
 					interruptions: s.interruptions,
 					techniqueId: s.techniqueId,

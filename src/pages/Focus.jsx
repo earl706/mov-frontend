@@ -9,6 +9,7 @@ import {
 	SkipForward,
 	Timer,
 	Volume2,
+	VolumeX,
 	Zap
 } from 'lucide-react';
 
@@ -26,6 +27,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardBody, CardHeader, Input, ProgressRing, Select, Button } from '../components/ui';
 import { focusApi, habitsApi, tasksApi, useFocusToday } from '../lib/resources';
 import { selectIntervalActive, selectOnBreak, useFocusTimerStore } from '../stores/focusTimerStore';
+import { toast } from '../stores/toastStore';
 
 const QUICK_ADD = [
 	{ label: '+0:30', seconds: 30 },
@@ -211,7 +213,7 @@ function FocusTimerStage({
 	);
 }
 
-function FocusAlarmOverlay({ onDismiss, startedAt, isBreak }) {
+function FocusAlarmOverlay({ onDismiss, onStopSound, startedAt, breakAlarm, startsBreak }) {
 	const [secondsLeft, setSecondsLeft] = useState(Math.ceil(FOCUS_ALARM_MAX_MS / 1000));
 
 	useEffect(() => {
@@ -224,22 +226,30 @@ function FocusAlarmOverlay({ onDismiss, startedAt, isBreak }) {
 		return () => window.clearInterval(id);
 	}, [startedAt]);
 
+	const hint = breakAlarm
+		? 'Stop the alarm to start your next focus round.'
+		: startsBreak
+			? 'Stop the alarm to start your break.'
+			: `Stop the alarm to finish${secondsLeft > 0 ? ` (auto-stops in ${secondsLeft}s)` : ''}.`;
+
 	return (
 		<motion.div
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
 			className="bg-surface/95 absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl px-6 text-center backdrop-blur-sm"
 		>
-			<p className="text-fg text-lg font-semibold">{isBreak ? 'Break over!' : "Time's up!"}</p>
-			<p className="text-muted mt-1 text-sm">
-				{isBreak
-					? 'Dismiss the alarm to start your next focus round.'
-					: `Dismiss the alarm within ${secondsLeft}s or it stops automatically.`}
-			</p>
-			<Button className="mt-5" onClick={onDismiss}>
-				<BellOff size={16} />
-				Dismiss alarm
-			</Button>
+			<p className="text-fg text-lg font-semibold">{breakAlarm ? 'Break over!' : "Time's up!"}</p>
+			<p className="text-muted mt-1 text-sm">{hint}</p>
+			<div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+				<Button variant="ghost" onClick={onStopSound}>
+					<VolumeX size={16} />
+					Stop sound
+				</Button>
+				<Button onClick={onDismiss}>
+					<BellOff size={16} />
+					Stop alarm
+				</Button>
+			</div>
 		</motion.div>
 	);
 }
@@ -449,7 +459,10 @@ export default function FocusPage() {
 	const addDuration = useFocusTimerStore((s) => s.addDuration);
 	const alarmActive = useFocusTimerStore((s) => s.alarmActive);
 	const alarmStartedAt = useFocusTimerStore((s) => s.alarmStartedAt);
-	const dismissAlarm = useFocusTimerStore((s) => s.dismissAlarm);
+	const alarmCompletedPhase = useFocusTimerStore((s) => s.alarmCompletedPhase);
+	const pendingAfterAlarm = useFocusTimerStore((s) => s.pendingAfterAlarm);
+	const resolveAfterAlarm = useFocusTimerStore((s) => s.resolveAfterAlarm);
+	const stopAlarmSound = useFocusTimerStore((s) => s.stopAlarmSound);
 	const alarmSound = useFocusTimerStore((s) => s.alarmSound);
 	const setAlarmSound = useFocusTimerStore((s) => s.setAlarmSound);
 	const attachmentType = useFocusTimerStore((s) => s.attachmentType);
@@ -476,6 +489,19 @@ export default function FocusPage() {
 	const pct = totalSeconds > 0 ? 100 - (remainingSeconds / totalSeconds) * 100 : 0;
 	const canEditDuration = !running && !sessionActive && !structured;
 	const canStart = remainingSeconds > 0;
+	const breakAlarm = alarmCompletedPhase === 'break';
+	const startsBreak = pendingAfterAlarm === 'start_break';
+
+	const handleAlarmDismiss = () => {
+		const action = resolveAfterAlarm();
+		if (action === 'start_break') {
+			const phaseAfter = useFocusTimerStore.getState().phase;
+			const breakLabel = phaseAfter === 'long_break' ? 'Long break' : 'Short break';
+			toast.success(`${breakLabel} started — rest up.`);
+		} else if (action === 'start_focus') {
+			toast.success(`${technique?.label ?? 'Focus'} — focus round started.`);
+		}
+	};
 
 	return (
 		<div>
@@ -489,9 +515,11 @@ export default function FocusPage() {
 				<Card className="relative py-10 lg:col-span-2">
 					{alarmActive && (
 						<FocusAlarmOverlay
-							onDismiss={dismissAlarm}
+							onDismiss={handleAlarmDismiss}
+							onStopSound={stopAlarmSound}
 							startedAt={alarmStartedAt}
-							isBreak={onBreak}
+							breakAlarm={breakAlarm}
+							startsBreak={startsBreak}
 						/>
 					)}
 					<CardBody className="flex flex-col items-center gap-8 py-12">
