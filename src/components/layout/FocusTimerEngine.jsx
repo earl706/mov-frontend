@@ -147,7 +147,7 @@ export function FocusTimerEngine() {
 				pendingAfterAlarm: structured ? 'start_break' : 'finish_free'
 			});
 			startAlarm('focus');
-			startFocusAlarm(state.alarmSound, handleAlarmDismiss);
+			startFocusAlarm(state.alarmSound);
 
 			const linkLabel =
 				payload.attachmentType === 'habit'
@@ -175,7 +175,7 @@ export function FocusTimerEngine() {
 		try {
 			useFocusTimerStore.setState({ pendingAfterAlarm: 'start_focus' });
 			startAlarm('break');
-			startFocusAlarm('soft', handleAlarmDismiss);
+			startFocusAlarm('soft');
 		} finally {
 			finishingRef.current = false;
 		}

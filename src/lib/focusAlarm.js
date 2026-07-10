@@ -89,17 +89,14 @@ export function playFocusAlarm(soundId) {
 	playFocusAlarmSound(soundId);
 }
 
-export function startFocusAlarm(soundId = DEFAULT_FOCUS_ALARM_SOUND, onEnd) {
+export function startFocusAlarm(soundId = DEFAULT_FOCUS_ALARM_SOUND) {
 	stopFocusAlarm();
 	const id = resolveSoundId(soundId);
 	const repeatMs = ALARM_REPEAT_MS[id] ?? ALARM_REPEAT_MS.chime;
 
 	playFocusAlarmSound(id);
 	alarmInterval = window.setInterval(() => playFocusAlarmSound(id), repeatMs);
-	alarmTimeout = window.setTimeout(() => {
-		stopFocusAlarm();
-		onEnd?.();
-	}, FOCUS_ALARM_MAX_MS);
+	alarmTimeout = window.setTimeout(stopFocusAlarm, FOCUS_ALARM_MAX_MS);
 }
 
 export function stopFocusAlarm() {

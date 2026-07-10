@@ -226,11 +226,13 @@ function FocusAlarmOverlay({ onDismiss, onStopSound, startedAt, breakAlarm, star
 		return () => window.clearInterval(id);
 	}, [startedAt]);
 
-	const hint = breakAlarm
-		? 'Stop the alarm to start your next focus round.'
+	const nextStep = breakAlarm
+		? 'start your next focus round'
 		: startsBreak
-			? 'Stop the alarm to start your break.'
-			: `Stop the alarm to finish${secondsLeft > 0 ? ` (auto-stops in ${secondsLeft}s)` : ''}.`;
+			? 'start your break'
+			: 'finish';
+	const soundHint = secondsLeft > 0 ? `Sound stops in ${secondsLeft}s. ` : 'Sound stopped. ';
+	const hint = `${soundHint}Stop the alarm to ${nextStep}.`;
 
 	return (
 		<motion.div
