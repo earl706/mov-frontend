@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, post } from './api';
 import { createResourceHooks } from '../hooks/useResource';
+import { useLocalCalendarDate } from '../hooks/useLocalCalendarDate';
 import { toast } from '../stores/toastStore';
 
 export const projectsApi = createResourceHooks('projects', '/projects/');
@@ -83,7 +84,11 @@ export function useTimeline(days = 180) {
 	});
 }
 export function useFocusToday() {
-	return useQuery({ queryKey: ['focus', 'today'], queryFn: () => get('/focus-sessions/today/') });
+	const localDate = useLocalCalendarDate();
+	return useQuery({
+		queryKey: ['focus', 'today', localDate],
+		queryFn: () => get('/focus-sessions/today/')
+	});
 }
 export function useSessionRecovery() {
 	return useQuery({ queryKey: ['focus', 'recover'], queryFn: () => get('/work-context/recover/') });
