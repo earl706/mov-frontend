@@ -26,7 +26,7 @@ export function LoadingScreen({ label = 'Loading…' }) {
 }
 
 export function Skeleton({ className }) {
-	return <div className={cn('bg-surface-2 animate-pulse rounded-lg', className)} />;
+	return <div className={cn('bg-surface-2 animate-pulse rounded-md', className)} />;
 }
 
 export function EmptyState({ icon: Icon, title, description, action }) {
@@ -34,10 +34,10 @@ export function EmptyState({ icon: Icon, title, description, action }) {
 		<motion.div
 			initial={{ opacity: 0, y: 8 }}
 			animate={{ opacity: 1, y: 0 }}
-			className="border-line flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-10 text-center"
+			className="border-line flex flex-col items-center justify-center gap-3 rounded-md border border-dashed p-10 text-center"
 		>
 			{Icon && (
-				<div className="bg-surface-2 text-muted flex h-12 w-12 items-center justify-center rounded-2xl">
+				<div className="bg-surface-2 text-muted flex h-12 w-12 items-center justify-center rounded-sm">
 					<Icon size={22} />
 				</div>
 			)}

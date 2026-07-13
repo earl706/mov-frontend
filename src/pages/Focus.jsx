@@ -238,7 +238,7 @@ function FocusAlarmOverlay({ onDismiss, onStopSound, startedAt, breakAlarm, star
 		<motion.div
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
-			className="bg-surface/95 absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl px-6 text-center backdrop-blur-sm"
+			className="bg-surface/95 absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg px-6 text-center backdrop-blur-sm"
 		>
 			<p className="text-fg text-lg font-semibold">{breakAlarm ? 'Break over!' : "Time's up!"}</p>
 			<p className="text-muted mt-1 text-sm">{hint}</p>
@@ -295,7 +295,7 @@ function FocusSessionSettings({
 									disabled={disabled}
 									onClick={() => onAttachmentTypeChange(item.id)}
 									className={cn(
-										'cursor-pointer rounded-lg border px-2 py-2 text-center text-xs font-medium transition-colors disabled:cursor-default',
+										'cursor-pointer rounded-md border px-2 py-2 text-center text-xs font-medium transition-colors disabled:cursor-default',
 										selected
 											? 'border-primary bg-primary/10 text-primary'
 											: 'border-line text-fg hover:bg-surface-2',
@@ -378,7 +378,7 @@ function FocusSessionSettings({
 									title={item.description}
 									onClick={() => onTechniqueChange(item.id)}
 									className={cn(
-										'cursor-pointer rounded-lg border px-2.5 py-2 text-left transition-colors disabled:cursor-default',
+										'cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors disabled:cursor-default',
 										selected
 											? 'border-primary bg-primary/10 text-primary'
 											: 'border-line text-fg hover:bg-surface-2',
@@ -406,7 +406,7 @@ function FocusSessionSettings({
 								<div
 									key={sound.id}
 									className={cn(
-										'relative rounded-lg border transition-colors',
+										'relative rounded-md border transition-colors',
 										selected ? 'border-primary bg-primary/10' : 'border-line',
 										disabled ? 'opacity-60' : 'hover:bg-surface-2'
 									)}
@@ -427,7 +427,7 @@ function FocusSessionSettings({
 										type="button"
 										disabled={disabled}
 										onClick={() => previewFocusAlarmSound(sound.id)}
-										className="text-muted hover:text-primary absolute top-1/2 right-1 -translate-y-1/2 cursor-pointer rounded p-0.5 transition-colors disabled:cursor-default"
+										className="text-muted hover:text-primary absolute top-1/2 right-1 -translate-y-1/2 cursor-pointer rounded-sm p-0.5 transition-colors disabled:cursor-default"
 										aria-label={`Preview ${sound.label}`}
 									>
 										<Volume2 size={12} />
@@ -544,7 +544,7 @@ export default function FocusPage() {
 										key={label}
 										type="button"
 										onClick={() => addDuration(delta)}
-										className="bg-surface-2 text-fg hover:bg-line cursor-pointer rounded-full px-5 py-2 text-sm font-medium transition-colors"
+										className="bg-surface-2 text-fg hover:bg-line cursor-pointer rounded-lg px-5 py-2 text-sm font-medium transition-colors"
 									>
 										{label}
 									</button>
@@ -554,13 +554,13 @@ export default function FocusPage() {
 
 						<div className="flex items-center justify-center">
 							{sessionActive ? (
-								<div className="bg-surface-2 flex items-center gap-1 rounded-full p-1">
+								<div className="bg-surface-2 flex items-center gap-1 rounded-md p-1">
 									{running ? (
 										<button
 											type="button"
 											onClick={pause}
 											className={cn(
-												'flex h-12 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-medium text-white shadow-sm',
+												'flex h-12 cursor-pointer items-center gap-2 rounded-lg px-5 text-sm font-medium text-white shadow-sm',
 												onBreak ? 'bg-success' : 'bg-warning'
 											)}
 											aria-label={onBreak ? 'Pause break timer' : 'Pause focus timer'}
@@ -573,7 +573,7 @@ export default function FocusPage() {
 											type="button"
 											onClick={start}
 											className={cn(
-												'flex h-12 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-medium shadow-sm',
+												'flex h-12 cursor-pointer items-center gap-2 rounded-lg px-5 text-sm font-medium shadow-sm',
 												onBreak ? 'bg-success text-white' : 'bg-primary text-primary-fg'
 											)}
 											aria-label={onBreak ? 'Resume break timer' : 'Resume focus timer'}
@@ -586,7 +586,7 @@ export default function FocusPage() {
 										<button
 											type="button"
 											onClick={skipBreak}
-											className="text-muted hover:text-fg flex h-12 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-medium transition-colors"
+											className="text-muted hover:text-fg flex h-12 cursor-pointer items-center gap-2 rounded-lg px-5 text-sm font-medium transition-colors"
 											aria-label="Skip break"
 										>
 											<SkipForward size={18} />
@@ -596,7 +596,7 @@ export default function FocusPage() {
 									<button
 										type="button"
 										onClick={reset}
-										className="text-muted hover:text-fg flex h-12 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-medium transition-colors"
+										className="text-muted hover:text-fg flex h-12 cursor-pointer items-center gap-2 rounded-lg px-5 text-sm font-medium transition-colors"
 										aria-label="Reset timer"
 									>
 										<RotateCcw size={18} />
@@ -608,7 +608,7 @@ export default function FocusPage() {
 									type="button"
 									onClick={start}
 									disabled={!canStart}
-									className="bg-primary text-primary-fg shadow-primary/30 flex h-14 cursor-pointer items-center gap-2 rounded-full px-8 text-sm font-medium shadow-lg disabled:cursor-default disabled:opacity-40"
+									className="bg-primary text-primary-fg shadow-primary/30 flex h-14 cursor-pointer items-center gap-2 rounded-lg px-8 text-sm font-medium shadow-lg disabled:cursor-default disabled:opacity-40"
 									aria-label={onBreak ? 'Start break' : 'Start focus timer'}
 								>
 									{onBreak ? <Coffee size={20} /> : <Play size={20} className="ml-0.5" />}
@@ -667,7 +667,7 @@ export default function FocusPage() {
 										return (
 											<div
 												key={s.id}
-												className="bg-surface-2 flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-center"
+												className="bg-surface-2 flex flex-col items-center gap-1 rounded-md px-1 py-2 text-center"
 												title={title}
 											>
 												<Zap size={14} className="text-primary shrink-0" />

@@ -35,7 +35,7 @@ export function Topbar() {
 		: 'Focus timer inactive';
 
 	const mobileTimerClass = cn(
-		'relative inline-flex cursor-pointer items-center justify-center rounded-xl border p-2 transition-colors sm:hidden',
+		'relative inline-flex cursor-pointer items-center justify-center rounded-md border p-2 transition-colors sm:hidden',
 		onBreak && running && 'border-success/40 bg-success/10 text-success',
 		onBreak && sessionActive && !running && 'border-success/40 bg-success/10 text-success',
 		!onBreak && running && 'border-primary/40 bg-primary/10 text-primary',
@@ -44,7 +44,7 @@ export function Topbar() {
 	);
 
 	const desktopTimerClass = cn(
-		'hidden cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition-colors sm:inline-flex',
+		'hidden cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors sm:inline-flex',
 		onBreak && running && 'border-success/40 bg-success/10 text-success',
 		onBreak && sessionActive && !running && 'border-success/40 bg-success/10 text-success',
 		!onBreak && running && 'border-primary/40 bg-primary/10 text-primary',
@@ -73,11 +73,11 @@ export function Topbar() {
 
 			<button
 				onClick={openPalette}
-				className="border-line bg-surface-2 text-muted hover:border-primary/40 flex h-10 flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm transition-colors sm:max-w-xs"
+				className="border-line bg-surface-2 text-muted hover:border-primary/40 flex h-10 flex-1 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm transition-colors sm:max-w-xs"
 			>
 				<Search size={16} />
 				<span>Search…</span>
-				<kbd className="border-line ml-auto hidden rounded border px-1.5 text-xs sm:inline">⌘K</kbd>
+				<kbd className="border-line ml-auto hidden rounded-sm border px-1.5 text-xs sm:inline">⌘K</kbd>
 			</button>
 
 			<div className="flex flex-1 items-center justify-end gap-1">

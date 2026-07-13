@@ -18,7 +18,7 @@ export function MfaPromptModal({ open, onClose }) {
 	return (
 		<Modal open={open} onClose={onClose} title="Secure your account">
 			<div className="space-y-4">
-				<div className="bg-primary/10 text-primary flex items-center gap-3 rounded-xl p-4">
+				<div className="bg-primary/10 text-primary flex items-center gap-3 rounded-md p-4">
 					<ShieldCheck size={24} />
 					<p className="text-sm">
 						Add two-factor authentication so only you can sign in, even if your password is
@@ -96,7 +96,7 @@ export function MfaSetupModal({ open, onClose, onEnabled }) {
 					<img
 						src={`data:image/png;base64,${setup.qr_png_base64}`}
 						alt="MFA QR code"
-						className="border-line mx-auto rounded-lg border"
+						className="border-line mx-auto rounded-md border"
 						width={180}
 						height={180}
 					/>
@@ -125,7 +125,7 @@ export function MfaSetupModal({ open, onClose, onEnabled }) {
 						Save these recovery codes somewhere safe. Each can be used once if you lose your
 						authenticator.
 					</p>
-					<div className="bg-bg border-line grid grid-cols-2 gap-2 rounded-xl border p-4 font-mono text-sm">
+					<div className="bg-bg border-line grid grid-cols-2 gap-2 rounded-md border p-4 font-mono text-sm">
 						{recoveryCodes.map((c) => (
 							<span key={c}>{c}</span>
 						))}

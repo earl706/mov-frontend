@@ -85,7 +85,7 @@ export default function SettingsPage() {
 									<button
 										key={t}
 										onClick={() => setTheme(t)}
-										className={`flex-1 cursor-pointer rounded-xl border px-4 py-2 text-sm capitalize ${
+										className={`flex-1 cursor-pointer rounded-md border px-4 py-2 text-sm capitalize ${
 											theme === t ? 'border-primary text-primary' : 'border-line text-muted'
 										}`}
 									>

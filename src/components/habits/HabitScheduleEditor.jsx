@@ -40,7 +40,7 @@ export function HabitScheduleEditor({ phases, onChange, onApplyPreset }) {
 			{phases.map((phase, index) => (
 				<div
 					key={index}
-					className="border-line bg-surface-2 grid grid-cols-2 gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+					className="border-line bg-surface-2 grid grid-cols-2 gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
 				>
 					<label className="space-y-1">
 						<span className="text-muted text-[11px]">From week</span>
@@ -49,7 +49,7 @@ export function HabitScheduleEditor({ phases, onChange, onApplyPreset }) {
 							min={1}
 							value={phase.from_week}
 							onChange={(e) => update(index, { from_week: Number(e.target.value) || 1 })}
-							className="border-line bg-surface w-full rounded-lg border px-2 py-1.5 text-sm"
+							className="border-line bg-surface w-full rounded-md border px-2 py-1.5 text-sm"
 						/>
 					</label>
 					<label className="space-y-1">
@@ -63,7 +63,7 @@ export function HabitScheduleEditor({ phases, onChange, onApplyPreset }) {
 								update(index, { to_week: e.target.value === '' ? '' : Number(e.target.value) })
 							}
 							disabled={index === phases.length - 1}
-							className="border-line bg-surface w-full rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
+							className="border-line bg-surface w-full rounded-md border px-2 py-1.5 text-sm disabled:opacity-50"
 						/>
 					</label>
 					<Select
@@ -82,7 +82,7 @@ export function HabitScheduleEditor({ phases, onChange, onApplyPreset }) {
 							type="button"
 							onClick={() => removePhase(index)}
 							disabled={phases.length <= 1}
-							className="text-muted hover:text-danger cursor-pointer rounded-lg p-2 disabled:cursor-default disabled:opacity-40"
+							className="text-muted hover:text-danger cursor-pointer rounded-md p-2 disabled:cursor-default disabled:opacity-40"
 							aria-label="Remove phase"
 						>
 							<Trash2 size={16} />
@@ -99,7 +99,7 @@ export function HabitScheduleEditor({ phases, onChange, onApplyPreset }) {
 								onChange={(e) =>
 									update(index, { target_per_period: Math.max(2, Number(e.target.value) || 2) })
 								}
-								className="border-line bg-surface w-full max-w-[8rem] rounded-lg border px-2 py-1.5 text-sm"
+								className="border-line bg-surface w-full max-w-[8rem] rounded-md border px-2 py-1.5 text-sm"
 							/>
 						</label>
 					)}

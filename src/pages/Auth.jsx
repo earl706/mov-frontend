@@ -11,7 +11,7 @@ function AuthShell({ children }) {
 			<div className="bg-primary relative hidden w-1/2 overflow-hidden lg:block">
 				<div className="text-primary-fg relative flex h-full flex-col justify-between p-12">
 					<div className="flex items-center gap-2">
-						<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+						<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-white/20">
 							<Zap size={22} />
 						</div>
 						<span className="text-2xl font-bold">Mov</span>
@@ -107,7 +107,7 @@ function MfaForm() {
 						required
 					/>
 				)}
-				{error && <p className="bg-danger/10 text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
+				{error && <p className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm">{error}</p>}
 				<Button type="submit" className="w-full" loading={loading}>
 					Verify
 				</Button>
@@ -175,7 +175,7 @@ export function LoginPage() {
 					placeholder="Password"
 					required
 				/>
-				{error && <p className="bg-danger/10 text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
+				{error && <p className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm">{error}</p>}
 				<Button type="submit" className="w-full" loading={loading}>
 					Sign in
 				</Button>
@@ -239,7 +239,7 @@ export function RegisterPage() {
 					placeholder="At least 8 characters"
 					required
 				/>
-				{error && <p className="bg-danger/10 text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
+				{error && <p className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm">{error}</p>}
 				<Button type="submit" className="w-full" loading={loading}>
 					Create account
 				</Button>

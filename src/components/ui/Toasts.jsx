@@ -30,7 +30,7 @@ export function Toasts() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
               onClick={() => dismiss(t.id)}
-              className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-xl border bg-surface px-4 py-3 text-sm shadow-lg ${TONES[t.type]}`}
+              className={`pointer-events-auto flex cursor-pointer items-center gap-2 rounded-lg border bg-surface px-4 py-3 text-sm shadow-lg ${TONES[t.type]}`}
             >
               <Icon size={18} />
               <span className="text-fg">{t.message}</span>

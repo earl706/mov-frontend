@@ -15,7 +15,7 @@ function NavItem({ to, label, icon: Icon, end }) {
 			onClick={closeSidebar}
 			className={({ isActive }) =>
 				cn(
-					'group relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+					'group relative flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
 					isActive ? 'text-fg' : 'text-muted hover:text-fg hover:bg-surface-2'
 				)
 			}
@@ -25,7 +25,7 @@ function NavItem({ to, label, icon: Icon, end }) {
 					{isActive && (
 						<motion.span
 							layoutId="nav-active"
-							className="bg-primary/12 absolute inset-0 rounded-xl"
+							className="bg-primary/12 absolute inset-0 rounded-md"
 							transition={{ type: 'spring', stiffness: 400, damping: 32 }}
 						/>
 					)}
@@ -41,7 +41,7 @@ export function SidebarContent() {
 	return (
 		<div className="flex h-full flex-col gap-6 p-4">
 			<div className="flex items-center gap-2 px-2 pt-1">
-				<div className="bg-primary text-primary-fg flex h-9 w-9 items-center justify-center rounded-xl">
+				<div className="bg-primary text-primary-fg flex h-9 w-9 items-center justify-center rounded-sm">
 					<Zap size={18} />
 				</div>
 				<span className="text-fg text-lg font-bold tracking-tight">Mov</span>

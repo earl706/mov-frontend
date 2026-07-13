@@ -97,7 +97,7 @@ export default function CalendarPage() {
 				}
 			/>
 
-			<div className="border-line bg-surface overflow-hidden rounded-2xl border">
+			<div className="border-line bg-surface overflow-hidden rounded-md border">
 				<div className="border-line bg-surface-2 text-muted grid grid-cols-7 border-b text-center text-xs font-medium">
 					{WEEKDAYS.map((d) => (
 						<div key={d} className="py-2">
@@ -136,7 +136,7 @@ export default function CalendarPage() {
 												e.stopPropagation();
 												remove.mutate(ev.id);
 											}}
-											className="block cursor-pointer truncate rounded px-1.5 py-0.5 text-[11px] text-white"
+											className="block cursor-pointer truncate rounded-sm px-1.5 py-0.5 text-[11px] text-white"
 											style={{ background: ev.color || KIND_COLOR[ev.kind] }}
 											title={`${ev.title} — click to delete`}
 										>

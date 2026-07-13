@@ -19,7 +19,7 @@ export function StatCard({ icon: Icon, label, value, sublabel, tone = 'primary',
 		>
 			{Icon && (
 				<div
-					className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+					className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm"
 					style={{ background: `var(--${tone})`, opacity: 0.95 }}
 				>
 					<Icon size={20} className="text-white" />

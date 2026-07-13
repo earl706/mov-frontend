@@ -103,7 +103,7 @@ export function HabitFormModal({ open, onClose, habit }) {
 								key={opt.id}
 								type="button"
 								onClick={() => setMode(opt.id)}
-								className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium ${
+								className={`cursor-pointer rounded-md border px-3 py-2 text-sm font-medium ${
 									form.schedule_mode === opt.id
 										? 'border-primary bg-primary/10 text-primary'
 										: 'border-line text-fg hover:bg-surface-2'

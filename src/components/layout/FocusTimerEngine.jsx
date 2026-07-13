@@ -219,7 +219,7 @@ export function FocusTimerEngine() {
 
 	return alarmActive && !onFocusPage ? (
 		<div className="fixed bottom-6 left-1/2 z-50 w-[min(100%,24rem)] -translate-x-1/2 px-4 sm:px-0">
-			<div className="border-line bg-surface flex flex-col gap-3 rounded-2xl border px-4 py-3 shadow-xl sm:flex-row sm:items-center">
+			<div className="border-line bg-surface flex flex-col gap-3 rounded-lg border px-4 py-3 shadow-xl sm:flex-row sm:items-center">
 				<div className="min-w-0 flex-1">
 					<p className="text-fg text-sm font-medium">{alarmTitle}</p>
 					<p className="text-muted mt-0.5 text-xs">{alarmHint}</p>

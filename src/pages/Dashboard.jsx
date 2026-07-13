@@ -56,7 +56,7 @@ function SessionRecovery({ recovery }) {
 				exit={{ opacity: 0, height: 0 }}
 				className="mb-4 overflow-hidden"
 			>
-				<div className="border-primary/30 bg-primary/8 flex flex-wrap items-center gap-3 rounded-2xl border p-4">
+				<div className="border-primary/30 bg-primary/8 flex flex-wrap items-center gap-3 rounded-md border p-4">
 					<div className="text-primary flex items-center gap-2">
 						<RotateCcw size={18} />
 						<span className="text-sm font-semibold">Pick up where you left off</span>
@@ -65,7 +65,7 @@ function SessionRecovery({ recovery }) {
 						{items.slice(0, 5).map((it) => (
 							<span
 								key={`${it.type}-${it.id}`}
-								className="border-line bg-surface text-fg inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs"
+								className="border-line bg-surface text-fg inline-flex items-center gap-1.5 rounded-sm border px-3 py-1 text-xs"
 							>
 								<CheckSquare size={13} className="text-muted" />
 								<span className="max-w-40 truncate">{it.title}</span>
@@ -74,7 +74,7 @@ function SessionRecovery({ recovery }) {
 					</div>
 					<button
 						onClick={() => setDismissed(true)}
-						className="text-muted hover:text-fg cursor-pointer rounded-lg p-1"
+						className="text-muted hover:text-fg cursor-pointer rounded-sm p-1"
 					>
 						<X size={16} />
 					</button>
@@ -183,11 +183,11 @@ export default function DashboardPage() {
 					<CardBody className="flex flex-col items-center gap-4">
 						<ProgressRing value={dash.momentum} size={120} stroke={10} tone="primary" />
 						<div className="grid w-full grid-cols-2 gap-2 text-center">
-							<div className="bg-surface-2 rounded-xl p-3">
+							<div className="bg-surface-2 rounded-md p-3">
 								<p className="text-fg text-lg font-semibold">{dash.consistency}</p>
 								<p className="text-muted text-xs">Consistency</p>
 							</div>
-							<div className="bg-surface-2 rounded-xl p-3">
+							<div className="bg-surface-2 rounded-md p-3">
 								<p className="text-fg text-lg font-semibold">
 									{Math.round(dash.burnout_risk * 100)}%
 								</p>
@@ -218,7 +218,7 @@ export default function DashboardPage() {
 							<Link
 								key={task.id}
 								to="/tasks"
-								className="border-line hover:border-primary/40 flex items-center gap-3 rounded-xl border p-3 transition-colors"
+								className="border-line hover:border-primary/40 flex items-center gap-3 rounded-md border p-3 transition-colors"
 							>
 								<PriorityDot score={task.priority?.score} />
 								<div className="min-w-0 flex-1">
@@ -236,7 +236,7 @@ export default function DashboardPage() {
 					<CardHeader title="Patterns" subtitle="Discovered in your activity" />
 					<CardBody className="space-y-2">
 						{(patterns?.patterns || []).slice(0, 4).map((p, i) => (
-							<div key={i} className="bg-surface-2 flex gap-2 rounded-xl p-3">
+							<div key={i} className="bg-surface-2 flex gap-2 rounded-md p-3">
 								<Flame size={16} className="text-primary mt-0.5 shrink-0" />
 								<p className="text-fg text-sm">{p.message}</p>
 							</div>
@@ -245,7 +245,7 @@ export default function DashboardPage() {
 							<p className="text-muted text-sm">Keep working — patterns appear as data grows.</p>
 						)}
 						{c.overdue > 0 && (
-							<div className="bg-danger/10 flex gap-2 rounded-xl p-3">
+							<div className="bg-danger/10 flex gap-2 rounded-md p-3">
 								<AlertTriangle size={16} className="text-danger mt-0.5 shrink-0" />
 								<p className="text-danger text-sm">
 									{c.overdue} task{c.overdue > 1 ? 's are' : ' is'} overdue.

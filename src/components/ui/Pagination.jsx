@@ -27,7 +27,7 @@ export function Pagination({ page = 1, totalPages = 1, count = 0, pageSize = 10,
 					type="button"
 					disabled={page <= 1}
 					onClick={() => onPageChange(page - 1)}
-					className="border-line text-muted hover:text-fg flex h-9 cursor-pointer items-center gap-1 rounded-lg border px-2.5 text-sm disabled:cursor-default disabled:opacity-40"
+					className="border-line text-muted hover:text-fg flex h-9 cursor-pointer items-center gap-1 rounded-md border px-2.5 text-sm disabled:cursor-default disabled:opacity-40"
 					aria-label="Previous page"
 				>
 					<ChevronLeft size={16} />
@@ -43,7 +43,7 @@ export function Pagination({ page = 1, totalPages = 1, count = 0, pageSize = 10,
 								type="button"
 								onClick={() => onPageChange(p)}
 								className={cn(
-									'h-9 min-w-9 cursor-pointer rounded-lg border px-2 text-sm font-medium disabled:cursor-default',
+									'h-9 min-w-9 cursor-pointer rounded-md border px-2 text-sm font-medium disabled:cursor-default',
 									p === page
 										? 'border-primary bg-primary/10 text-primary'
 										: 'border-line text-fg hover:bg-surface-2'
@@ -59,7 +59,7 @@ export function Pagination({ page = 1, totalPages = 1, count = 0, pageSize = 10,
 					type="button"
 					disabled={page >= totalPages}
 					onClick={() => onPageChange(page + 1)}
-					className="border-line text-muted hover:text-fg flex h-9 cursor-pointer items-center gap-1 rounded-lg border px-2.5 text-sm disabled:cursor-default disabled:opacity-40"
+					className="border-line text-muted hover:text-fg flex h-9 cursor-pointer items-center gap-1 rounded-md border px-2.5 text-sm disabled:cursor-default disabled:opacity-40"
 					aria-label="Next page"
 				>
 					Next

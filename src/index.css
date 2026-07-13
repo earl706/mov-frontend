@@ -56,7 +56,11 @@
   --color-danger: var(--danger);
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --radius-xl: 1rem;
+
+  /* Border radius: sm 4px (icons, tags, tables) · md 8px (cards, inputs, buttons) · lg 16px (actions, popups) */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
 }
 
 html,

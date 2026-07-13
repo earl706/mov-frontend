@@ -3,7 +3,7 @@ import { useId } from 'react'
 import { cn } from '../../lib/format'
 
 const baseControl =
-  'w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-fg ' +
+  'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-fg ' +
   'placeholder:text-muted focus:border-primary focus:outline-none ' +
   'focus-visible:ring-2 focus-visible:ring-[var(--ring)] transition-colors'
 

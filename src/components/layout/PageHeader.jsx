@@ -9,7 +9,7 @@ export function PageHeader({ title, description, actions, icon: Icon }) {
     >
       <div className="flex items-center gap-3">
         {Icon && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/12 text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/12 text-primary">
             <Icon size={20} />
           </div>
         )}

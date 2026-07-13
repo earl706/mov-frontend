@@ -45,7 +45,7 @@ function PaletteDialog({ onClose }) {
 			initial={{ y: -16, opacity: 0 }}
 			animate={{ y: 0, opacity: 1 }}
 			exit={{ y: -16, opacity: 0 }}
-			className="border-line bg-surface relative w-full max-w-xl overflow-hidden rounded-2xl border shadow-2xl"
+			className="border-line bg-surface relative w-full max-w-xl overflow-hidden rounded-lg border shadow-2xl"
 			role="dialog"
 			aria-label="Search"
 		>
@@ -79,7 +79,7 @@ function PaletteDialog({ onClose }) {
 								<button
 									key={`${group.type}-${result.id}`}
 									onClick={() => goTo(group)}
-									className="hover:bg-surface-2 flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-sm"
+									className="hover:bg-surface-2 flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-left text-sm"
 								>
 									<Icon size={16} className="text-muted" />
 									<span className="text-fg flex-1 truncate">{result.title}</span>

@@ -129,11 +129,11 @@ function computeHabitGridLayout(width, { minWeeks = 5, maxWeeks = 26 } = {}) {
 
 function tileCellRadius(row, col, size = 7) {
 	const last = size - 1;
-	const parts = ['rounded-[3px]'];
-	if (row === 0 && col === 0) parts.push('rounded-tl-[10px]');
-	if (row === 0 && col === last) parts.push('rounded-tr-[10px]');
-	if (row === last && col === 0) parts.push('rounded-bl-[10px]');
-	if (row === last && col === last) parts.push('rounded-br-[10px]');
+	const parts = ['rounded-sm'];
+	if (row === 0 && col === 0) parts.push('rounded-tl-sm');
+	if (row === 0 && col === last) parts.push('rounded-tr-sm');
+	if (row === last && col === 0) parts.push('rounded-bl-sm');
+	if (row === last && col === last) parts.push('rounded-br-sm');
 	return parts.join(' ');
 }
 

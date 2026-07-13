@@ -39,7 +39,7 @@ export function ListToolbar({
 						value={search}
 						onChange={(e) => onSearchChange(e.target.value)}
 						placeholder={searchPlaceholder}
-						className="border-line bg-surface text-fg placeholder:text-muted focus:border-primary w-full rounded-xl border py-2 pr-3 pl-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+						className="border-line bg-surface text-fg placeholder:text-muted focus:border-primary w-full rounded-md border py-2 pr-3 pl-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
 					/>
 				</div>
 			)}

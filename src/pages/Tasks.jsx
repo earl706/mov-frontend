@@ -67,12 +67,12 @@ export function TaskRow({ task, onToggle, onOpen }) {
 			layout
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
-			className="border-line bg-surface hover:border-primary/40 flex items-center gap-3 rounded-xl border p-3"
+			className="border-line bg-surface hover:border-primary/40 flex items-center gap-3 rounded-sm border p-3"
 		>
 			<button
 				onClick={() => onToggle(task)}
 				className={cn(
-					'flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border',
+					'flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border',
 					done ? 'border-success bg-success text-white' : 'border-line hover:border-primary'
 				)}
 			>
@@ -261,7 +261,7 @@ export function TaskDetailModal({ open, onClose, task, onEdit }) {
 						<Badge tone="success">{formatDurationSeconds(task.focus_seconds)} focused</Badge>
 					)}
 				</div>
-				<div className="border-line rounded-xl border p-4">
+				<div className="border-line rounded-md border p-4">
 					<div className="mb-3 flex items-center justify-between">
 						<span className="text-sm font-semibold">Priority score</span>
 						<Badge tone="primary">{Math.round(task.priority?.score ?? 0)}/100</Badge>
@@ -296,7 +296,7 @@ export function TaskDetailModal({ open, onClose, task, onEdit }) {
 						{(task.subtasks || []).map((sub) => (
 							<div
 								key={sub.id}
-								className="bg-surface-2 flex items-center gap-2 rounded-lg px-3 py-2"
+								className="bg-surface-2 flex items-center gap-2 rounded-md px-3 py-2"
 							>
 								<input
 									type="checkbox"
@@ -332,7 +332,7 @@ export function TaskDetailModal({ open, onClose, task, onEdit }) {
 							value={newSub}
 							onChange={(e) => setNewSub(e.target.value)}
 							placeholder="Add a subtask…"
-							className="border-line bg-surface focus:border-primary flex-1 rounded-lg border px-3 py-2 text-sm outline-none"
+							className="border-line bg-surface focus:border-primary flex-1 rounded-md border px-3 py-2 text-sm outline-none"
 						/>
 						<Button size="sm" type="submit" variant="secondary">
 							Add
@@ -457,7 +457,7 @@ export default function TasksPage() {
 							key={f.key}
 							onClick={() => setFilter(f.key)}
 							className={cn(
-								'cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium',
+								'cursor-pointer rounded-sm px-3 py-1.5 text-sm font-medium',
 								filter === f.key
 									? 'bg-primary text-primary-fg'
 									: 'bg-surface-2 text-muted hover:text-fg'
@@ -470,7 +470,7 @@ export default function TasksPage() {
 				<button
 					onClick={() => setByPriority((v) => !v)}
 					className={cn(
-						'ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium',
+						'ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium',
 						byPriority ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-muted hover:text-fg'
 					)}
 				>

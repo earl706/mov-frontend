@@ -1,7 +1,7 @@
 import { cn } from '../../lib/format';
 
 export function Card({ className, as: Tag = 'div', ...props }) {
-	return <Tag className={cn('border-line bg-surface rounded-2xl border', className)} {...props} />;
+	return <Tag className={cn('border-line bg-surface rounded-md border', className)} {...props} />;
 }
 
 export function CardHeader({ className, title, subtitle, action, children }) {

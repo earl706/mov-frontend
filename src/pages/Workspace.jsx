@@ -123,7 +123,7 @@ function HabitCard({ habit, onEdit }) {
 				onClick={() => checkIn.mutate({ id: habit.id, undo: doneToday })}
 				disabled={checkIn.isPending}
 				className={cn(
-					'mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium disabled:cursor-default',
+					'mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium disabled:cursor-default',
 					doneToday ? 'bg-success/15 text-success' : 'bg-surface-2 text-fg hover:bg-line'
 				)}
 			>
@@ -400,7 +400,7 @@ function NotesView() {
 							)}
 							<div className="text-muted mt-3 flex items-center gap-2 text-xs">
 								{note.project_name && (
-									<span className="bg-surface-2 rounded-full px-2 py-0.5">{note.project_name}</span>
+									<span className="bg-surface-2 rounded-sm px-2 py-0.5">{note.project_name}</span>
 								)}
 								<span>{fromNow(note.updated_at)}</span>
 							</div>
@@ -543,12 +543,12 @@ function NotificationsView() {
 								animate={{ opacity: 1 }}
 								onClick={() => onClick(n)}
 								className={cn(
-									'flex w-full cursor-pointer items-start gap-3 rounded-xl border p-4 text-left',
+									'flex w-full cursor-pointer items-start gap-3 rounded-md border p-4 text-left',
 									n.is_read ? 'border-line bg-surface' : 'border-primary/30 bg-primary/5'
 								)}
 							>
 								<span
-									className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+									className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm"
 									style={{
 										background: `color-mix(in srgb, ${meta.tone} 18%, transparent)`,
 										color: meta.tone
