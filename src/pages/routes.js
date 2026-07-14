@@ -12,6 +12,18 @@ export const publicRoutes = [
 	{
 		path: '/oauth/callback',
 		Component: lazy(() => import('./OAuthCallback'))
+	},
+	{
+		path: '/check-email',
+		Component: lazy(() =>
+			import('./EmailVerification').then((m) => ({ default: m.CheckEmailPage }))
+		)
+	},
+	{
+		path: '/verify-email',
+		Component: lazy(() =>
+			import('./EmailVerification').then((m) => ({ default: m.VerifyEmailPage }))
+		)
 	}
 ];
 

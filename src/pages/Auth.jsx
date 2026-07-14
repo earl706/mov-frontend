@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
 import { Button, Input } from '../components/ui';
 
-function AuthShell({ children }) {
+export function AuthShell({ children }) {
 	return (
 		<div className="bg-bg flex min-h-screen">
 			<div className="bg-primary relative hidden w-1/2 overflow-hidden lg:block">
@@ -148,8 +148,13 @@ export function LoginPage() {
 		e.preventDefault();
 		setLoading(true);
 		try {
-			const user = await login(email, password);
+			await login(email, password);
+			const user = useAuthStore.getState().user;
 			if (user) navigate('/', { replace: true });
+		} catch (err) {
+			if (err.message === 'verification_required') {
+				navigate('/check-email', { replace: true });
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -207,7 +212,7 @@ export function RegisterPage() {
 		setLoading(true);
 		try {
 			await register(form);
-			navigate('/', { replace: true });
+			navigate('/check-email', { replace: true });
 		} finally {
 			setLoading(false);
 		}

@@ -14,7 +14,8 @@ function applySession(set, data) {
 		status: 'authenticated',
 		mfaRequired: false,
 		mfaToken: null,
-		error: null
+		error: null,
+		pendingVerificationEmail: null
 	};
 }
 
@@ -30,6 +31,7 @@ export const useAuthStore = create((set, get) => ({
 	error: null,
 	mfaRequired: false,
 	mfaToken: null,
+	pendingVerificationEmail: null,
 
 	isAuthenticated: () => Boolean(get().user),
 
@@ -41,7 +43,19 @@ export const useAuthStore = create((set, get) => ({
 			if (data.mfa_required) return null;
 			return data.user;
 		} catch (err) {
-			const message = err.response?.data?.detail || 'Invalid email or password.';
+			const data = err.response?.data;
+			if (data?.email_verification_required || err.response?.status === 403) {
+				set({
+					status: 'unauthenticated',
+					error: data?.detail || 'Verify your email before signing in.',
+					pendingVerificationEmail: data?.email || email
+				});
+				throw new Error('verification_required', { cause: err });
+			}
+			const message =
+				(typeof data?.detail === 'string' && data.detail) ||
+				data?.non_field_errors?.[0] ||
+				'Invalid email or password.';
 			set({ status: 'unauthenticated', error: message });
 			throw new Error(message, { cause: err });
 		}
@@ -67,8 +81,13 @@ export const useAuthStore = create((set, get) => ({
 	async register(payload) {
 		set({ status: 'loading', error: null });
 		try {
-			await api.post('/auth/register/', payload);
-			return await get().login(payload.email, payload.password);
+			const { data } = await api.post('/auth/register/', payload);
+			set({
+				status: 'unauthenticated',
+				error: null,
+				pendingVerificationEmail: data.email
+			});
+			return data;
 		} catch (err) {
 			const data = err.response?.data;
 			const message =
@@ -76,6 +95,21 @@ export const useAuthStore = create((set, get) => ({
 			set({ status: 'unauthenticated', error: message });
 			throw new Error(message, { cause: err });
 		}
+	},
+
+	async resendVerification(email) {
+		const { data } = await api.post('/auth/email/resend/', { email });
+		return data;
+	},
+
+	async verifyEmail(key) {
+		const { data } = await api.post('/auth/email/verify/', { key });
+		return data;
+	},
+
+	async changeEmail(email) {
+		const { data } = await api.post('/auth/email/change/', { email });
+		return data;
 	},
 
 	oauthStart(provider) {
@@ -130,6 +164,12 @@ export const useAuthStore = create((set, get) => ({
 
 	logout() {
 		tokenStore.clear();
-		set({ user: null, status: 'unauthenticated', mfaRequired: false, mfaToken: null });
+		set({
+			user: null,
+			status: 'unauthenticated',
+			mfaRequired: false,
+			mfaToken: null,
+			pendingVerificationEmail: null
+		});
 	}
 }));

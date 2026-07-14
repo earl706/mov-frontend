@@ -53,8 +53,20 @@ export default function SettingsPage() {
 		}
 	});
 
-	if (!form) return null;
+	const changeEmail = useMutation({
+		mutationFn: (email) => useAuthStore.getState().changeEmail(email),
+		onSuccess: (data) => {
+			toast.success(data.detail || 'Confirmation sent to your new email.');
+		},
+		onError: (err) => {
+			toast.error(err.response?.data?.detail || 'Could not change email.');
+		}
+	});
+
+	const [newEmail, setNewEmail] = useState('');
 	const setField = (key) => (e) => setOverrides((o) => ({ ...o, [key]: e.target.value }));
+
+	if (!form) return null;
 
 	return (
 		<div>
@@ -78,6 +90,28 @@ export default function SettingsPage() {
 								e.target.value !== user?.full_name && saveName.mutate({ full_name: e.target.value })
 							}
 						/>
+						<div className="space-y-2">
+							<Input
+								label="Email"
+								type="email"
+								value={newEmail}
+								onChange={(e) => setNewEmail(e.target.value)}
+								placeholder={user?.email}
+							/>
+							<Button
+								type="button"
+								variant="secondary"
+								className="w-full"
+								loading={changeEmail.isPending}
+								disabled={!newEmail || newEmail.toLowerCase() === user?.email?.toLowerCase()}
+								onClick={() => changeEmail.mutate(newEmail)}
+							>
+								Change email
+							</Button>
+							<p className="text-muted text-xs">
+								We will send a confirmation link to the new address before it becomes active.
+							</p>
+						</div>
 						<div>
 							<span className="text-fg mb-1.5 block text-sm font-medium">Theme</span>
 							<div className="flex gap-2">
