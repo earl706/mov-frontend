@@ -6,6 +6,7 @@ import {
 	Pause,
 	Play,
 	RotateCcw,
+	Settings,
 	SkipForward,
 	Timer,
 	Volume2,
@@ -24,7 +25,16 @@ import {
 } from '../lib/focusTimerFormat';
 import { formatDurationSeconds, minutesToHours } from '../lib/format';
 import { PageHeader } from '../components/layout/PageHeader';
-import { Card, CardBody, CardHeader, Input, ProgressRing, Select, Button } from '../components/ui';
+import {
+	Card,
+	CardBody,
+	CardHeader,
+	Input,
+	Modal,
+	ProgressRing,
+	Select,
+	Button
+} from '../components/ui';
 import { focusApi, habitsApi, tasksApi, useFocusToday } from '../lib/resources';
 import { selectIntervalActive, selectOnBreak, useFocusTimerStore } from '../stores/focusTimerStore';
 import { toast } from '../stores/toastStore';
@@ -256,6 +266,63 @@ function FocusAlarmOverlay({ onDismiss, onStopSound, startedAt, breakAlarm, star
 	);
 }
 
+function settingsAttachmentLabel({
+	attachmentType,
+	attachedHabitId,
+	attachedTaskId,
+	sessionLabel,
+	habits,
+	tasks
+}) {
+	if (attachmentType === 'habit') {
+		const habit = habits.find((h) => h.id === attachedHabitId);
+		return habit ? `Habit: ${habit.name}` : 'Habit';
+	}
+	if (attachmentType === 'task') {
+		const task = tasks.find((t) => t.id === attachedTaskId);
+		return task ? `Task: ${task.title}` : 'Task';
+	}
+	const label = sessionLabel?.trim();
+	return label || 'No link';
+}
+
+function FocusSettingsSummary({
+	technique,
+	alarmSound,
+	attachmentType,
+	attachedHabitId,
+	attachedTaskId,
+	sessionLabel,
+	habits,
+	tasks
+}) {
+	const techniqueLabel = technique?.label ?? 'Free timer';
+	const alarmLabel =
+		FOCUS_ALARM_SOUNDS.find((sound) => sound.id === alarmSound)?.label ?? alarmSound;
+	const attachmentLabel = settingsAttachmentLabel({
+		attachmentType,
+		attachedHabitId,
+		attachedTaskId,
+		sessionLabel,
+		habits,
+		tasks
+	});
+
+	return (
+		<div className="mb-4 flex flex-wrap items-center gap-1.5" aria-label="Active session settings">
+			{[techniqueLabel, alarmLabel, attachmentLabel].map((part, index) => (
+				<span
+					key={`${index}-${part}`}
+					className="border-line bg-surface-2 text-muted inline-flex max-w-56 truncate rounded-sm border px-2 py-0.5 text-[11px] font-medium"
+					title={part}
+				>
+					{part}
+				</span>
+			))}
+		</div>
+	);
+}
+
 function FocusSessionSettings({
 	techniqueId,
 	onTechniqueChange,
@@ -276,173 +343,171 @@ function FocusSessionSettings({
 	tasks
 }) {
 	return (
-		<Card>
-			<CardHeader title="Session settings" />
-			<CardBody className="space-y-4">
-				<div>
-					<p className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">Link to</p>
-					<div className="mb-2 grid grid-cols-3 gap-1.5">
-						{[
-							{ id: 'none', label: 'None' },
-							{ id: 'habit', label: 'Habit' },
-							{ id: 'task', label: 'Task' }
-						].map((item) => {
-							const selected = attachmentType === item.id;
-							return (
-								<button
-									key={item.id}
-									type="button"
-									disabled={disabled}
-									onClick={() => onAttachmentTypeChange(item.id)}
-									className={cn(
-										'cursor-pointer rounded-md border px-2 py-2 text-center text-xs font-medium transition-colors disabled:cursor-default',
-										selected
-											? 'border-primary bg-primary/10 text-primary'
-											: 'border-line text-fg hover:bg-surface-2',
-										disabled && 'opacity-60'
-									)}
-								>
-									{item.label}
-								</button>
-							);
-						})}
-					</div>
-					{attachmentType === 'habit' && (
-						<Select
-							value={attachedHabitId ?? ''}
-							onChange={(e) => {
-								const id = e.target.value ? Number(e.target.value) : null;
-								const habit = habits.find((h) => h.id === id) || null;
-								onHabitChange(habit);
-							}}
-							disabled={disabled}
-						>
-							<option value="">Choose a habit…</option>
-							{habits.map((h) => (
-								<option key={h.id} value={h.id}>
-									{h.name}
-								</option>
-							))}
-						</Select>
-					)}
-					{attachmentType === 'task' && (
-						<Select
-							value={attachedTaskId ?? ''}
-							onChange={(e) => {
-								const id = e.target.value ? Number(e.target.value) : null;
-								const task = tasks.find((t) => t.id === id) || null;
-								onTaskChange(task);
-							}}
-							disabled={disabled}
-						>
-							<option value="">Choose a task…</option>
-							{tasks.map((t) => (
-								<option key={t.id} value={t.id}>
-									{t.title}
-								</option>
-							))}
-						</Select>
-					)}
-					{attachmentType === 'none' && (
-						<Input
-							placeholder="Optional session label"
-							value={sessionLabel}
-							onChange={(e) => onSessionLabelChange(e.target.value)}
-							disabled={disabled}
-						/>
-					)}
-					{attachmentType === 'habit' && attachedHabitId && (
-						<p className="text-muted mt-2 text-[11px]">
-							Completing a focus round checks in this habit and logs duration for today.
-						</p>
-					)}
-					{attachmentType === 'task' && attachedTaskId && (
-						<p className="text-muted mt-2 text-[11px]">
-							Starting sets the task to in progress; each focus round adds to its logged time.
-						</p>
-					)}
+		<div className="space-y-3">
+			<div>
+				<p className="text-muted mb-1.5 text-[11px] font-medium tracking-wide uppercase">Link to</p>
+				<div className="mb-1.5 grid grid-cols-3 gap-1">
+					{[
+						{ id: 'none', label: 'None' },
+						{ id: 'habit', label: 'Habit' },
+						{ id: 'task', label: 'Task' }
+					].map((item) => {
+						const selected = attachmentType === item.id;
+						return (
+							<button
+								key={item.id}
+								type="button"
+								disabled={disabled}
+								onClick={() => onAttachmentTypeChange(item.id)}
+								className={cn(
+									'cursor-pointer rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors disabled:cursor-default',
+									selected
+										? 'border-primary bg-primary/10 text-primary'
+										: 'border-line text-fg hover:bg-surface-2',
+									disabled && 'opacity-60'
+								)}
+							>
+								{item.label}
+							</button>
+						);
+					})}
 				</div>
-
-				<div>
-					<p className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
-						Technique
+				{attachmentType === 'habit' && (
+					<Select
+						value={attachedHabitId ?? ''}
+						onChange={(e) => {
+							const id = e.target.value ? Number(e.target.value) : null;
+							const habit = habits.find((h) => h.id === id) || null;
+							onHabitChange(habit);
+						}}
+						disabled={disabled}
+					>
+						<option value="">Choose a habit…</option>
+						{habits.map((h) => (
+							<option key={h.id} value={h.id}>
+								{h.name}
+							</option>
+						))}
+					</Select>
+				)}
+				{attachmentType === 'task' && (
+					<Select
+						value={attachedTaskId ?? ''}
+						onChange={(e) => {
+							const id = e.target.value ? Number(e.target.value) : null;
+							const task = tasks.find((t) => t.id === id) || null;
+							onTaskChange(task);
+						}}
+						disabled={disabled}
+					>
+						<option value="">Choose a task…</option>
+						{tasks.map((t) => (
+							<option key={t.id} value={t.id}>
+								{t.title}
+							</option>
+						))}
+					</Select>
+				)}
+				{attachmentType === 'none' && (
+					<Input
+						placeholder="Optional session label"
+						value={sessionLabel}
+						onChange={(e) => onSessionLabelChange(e.target.value)}
+						disabled={disabled}
+					/>
+				)}
+				{attachmentType === 'habit' && attachedHabitId && (
+					<p className="text-muted mt-1.5 text-[11px]">
+						Completing a focus round checks in this habit and logs duration for today.
 					</p>
-					<div className="grid grid-cols-2 gap-1.5">
-						{FOCUS_TECHNIQUES.map((item) => {
-							const selected = techniqueId === item.id;
-							return (
+				)}
+				{attachmentType === 'task' && attachedTaskId && (
+					<p className="text-muted mt-1.5 text-[11px]">
+						Starting sets the task to in progress; each focus round adds to its logged time.
+					</p>
+				)}
+			</div>
+
+			<div>
+				<p className="text-muted mb-1.5 text-[11px] font-medium tracking-wide uppercase">
+					Technique
+				</p>
+				<div className="grid grid-cols-2 gap-1">
+					{FOCUS_TECHNIQUES.map((item) => {
+						const selected = techniqueId === item.id;
+						return (
+							<button
+								key={item.id}
+								type="button"
+								disabled={disabled}
+								title={item.description}
+								onClick={() => onTechniqueChange(item.id)}
+								className={cn(
+									'cursor-pointer rounded-md border px-2 py-1.5 text-left transition-colors disabled:cursor-default',
+									selected
+										? 'border-primary bg-primary/10 text-primary'
+										: 'border-line text-fg hover:bg-surface-2',
+									disabled && 'opacity-60'
+								)}
+							>
+								<span className="block text-xs leading-tight font-medium">{item.label}</span>
+							</button>
+						);
+					})}
+				</div>
+				{isStructuredTechnique(techniqueId) && technique?.cyclesBeforeLongBreak && (
+					<p className="text-muted mt-1.5 text-center text-[11px]">
+						{pomodoroCount}/{technique.cyclesBeforeLongBreak} rounds · long break next
+					</p>
+				)}
+			</div>
+
+			<div>
+				<p className="text-muted mb-1.5 text-[11px] font-medium tracking-wide uppercase">Alarm</p>
+				<div className="grid grid-cols-3 gap-1">
+					{FOCUS_ALARM_SOUNDS.map((sound) => {
+						const selected = alarmSound === sound.id;
+						return (
+							<div
+								key={sound.id}
+								className={cn(
+									'relative rounded-md border transition-colors',
+									selected ? 'border-primary bg-primary/10' : 'border-line',
+									disabled ? 'opacity-60' : 'hover:bg-surface-2'
+								)}
+							>
 								<button
-									key={item.id}
 									type="button"
 									disabled={disabled}
-									title={item.description}
-									onClick={() => onTechniqueChange(item.id)}
+									title={sound.description}
+									onClick={() => onAlarmChange(sound.id)}
 									className={cn(
-										'cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors disabled:cursor-default',
-										selected
-											? 'border-primary bg-primary/10 text-primary'
-											: 'border-line text-fg hover:bg-surface-2',
-										disabled && 'opacity-60'
+										'w-full cursor-pointer px-1.5 py-1.5 pr-6 text-left text-xs leading-tight font-medium disabled:cursor-default',
+										selected ? 'text-primary' : 'text-fg'
 									)}
 								>
-									<span className="block text-xs leading-tight font-medium">{item.label}</span>
+									{sound.label}
 								</button>
-							);
-						})}
-					</div>
-					{isStructuredTechnique(techniqueId) && technique?.cyclesBeforeLongBreak && (
-						<p className="text-muted mt-2 text-center text-[11px]">
-							{pomodoroCount}/{technique.cyclesBeforeLongBreak} rounds · long break next
-						</p>
-					)}
-				</div>
-
-				<div>
-					<p className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">Alarm</p>
-					<div className="grid grid-cols-3 gap-1.5">
-						{FOCUS_ALARM_SOUNDS.map((sound) => {
-							const selected = alarmSound === sound.id;
-							return (
-								<div
-									key={sound.id}
-									className={cn(
-										'relative rounded-md border transition-colors',
-										selected ? 'border-primary bg-primary/10' : 'border-line',
-										disabled ? 'opacity-60' : 'hover:bg-surface-2'
-									)}
+								<button
+									type="button"
+									disabled={disabled}
+									onClick={() => previewFocusAlarmSound(sound.id)}
+									className="text-muted hover:text-primary absolute top-1/2 right-0.5 -translate-y-1/2 cursor-pointer rounded-sm p-0.5 transition-colors disabled:cursor-default"
+									aria-label={`Preview ${sound.label}`}
 								>
-									<button
-										type="button"
-										disabled={disabled}
-										title={sound.description}
-										onClick={() => onAlarmChange(sound.id)}
-										className={cn(
-											'w-full cursor-pointer px-2 py-2 pr-6 text-left text-xs leading-tight font-medium disabled:cursor-default',
-											selected ? 'text-primary' : 'text-fg'
-										)}
-									>
-										{sound.label}
-									</button>
-									<button
-										type="button"
-										disabled={disabled}
-										onClick={() => previewFocusAlarmSound(sound.id)}
-										className="text-muted hover:text-primary absolute top-1/2 right-1 -translate-y-1/2 cursor-pointer rounded-sm p-0.5 transition-colors disabled:cursor-default"
-										aria-label={`Preview ${sound.label}`}
-									>
-										<Volume2 size={12} />
-									</button>
-								</div>
-							);
-						})}
-					</div>
+									<Volume2 size={12} />
+								</button>
+							</div>
+						);
+					})}
 				</div>
-			</CardBody>
-		</Card>
+			</div>
+		</div>
 	);
 }
 
 export default function FocusPage() {
+	const [settingsOpen, setSettingsOpen] = useState(false);
 	const running = useFocusTimerStore((s) => s.running);
 	const remainingSeconds = useFocusTimerStore((s) => s.remainingSeconds);
 	const totalSeconds = useFocusTimerStore((s) => s.totalSeconds);
@@ -511,6 +576,23 @@ export default function FocusPage() {
 				title="Focus"
 				icon={Timer}
 				description="Deep work, measured. Timer keeps running as you navigate."
+				actions={
+					<Button variant="secondary" size="sm" onClick={() => setSettingsOpen(true)}>
+						<Settings size={16} />
+						Settings
+					</Button>
+				}
+			/>
+
+			<FocusSettingsSummary
+				technique={technique}
+				alarmSound={alarmSound}
+				attachmentType={attachmentType}
+				attachedHabitId={attachedHabitId}
+				attachedTaskId={attachedTaskId}
+				sessionLabel={sessionLabel}
+				habits={habits}
+				tasks={tasks}
 			/>
 
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -635,26 +717,6 @@ export default function FocusPage() {
 						</CardBody>
 					</Card>
 
-					<FocusSessionSettings
-						techniqueId={techniqueId}
-						onTechniqueChange={setTechnique}
-						alarmSound={alarmSound}
-						onAlarmChange={setAlarmSound}
-						disabled={sessionActive || alarmActive}
-						pomodoroCount={pomodoroCount}
-						technique={technique}
-						attachmentType={attachmentType}
-						onAttachmentTypeChange={setAttachmentType}
-						attachedHabitId={attachedHabitId}
-						onHabitChange={setAttachedHabit}
-						attachedTaskId={attachedTaskId}
-						onTaskChange={setAttachedTask}
-						sessionLabel={sessionLabel}
-						onSessionLabelChange={setSessionLabel}
-						habits={habits}
-						tasks={tasks}
-					/>
-
 					<Card>
 						<CardHeader title="Recent sessions" />
 						<CardBody>
@@ -683,6 +745,33 @@ export default function FocusPage() {
 					</Card>
 				</div>
 			</div>
+
+			<Modal
+				open={settingsOpen}
+				onClose={() => setSettingsOpen(false)}
+				title="Session settings"
+				size="sm"
+			>
+				<FocusSessionSettings
+					techniqueId={techniqueId}
+					onTechniqueChange={setTechnique}
+					alarmSound={alarmSound}
+					onAlarmChange={setAlarmSound}
+					disabled={sessionActive || alarmActive}
+					pomodoroCount={pomodoroCount}
+					technique={technique}
+					attachmentType={attachmentType}
+					onAttachmentTypeChange={setAttachmentType}
+					attachedHabitId={attachedHabitId}
+					onHabitChange={setAttachedHabit}
+					attachedTaskId={attachedTaskId}
+					onTaskChange={setAttachedTask}
+					sessionLabel={sessionLabel}
+					onSessionLabelChange={setSessionLabel}
+					habits={habits}
+					tasks={tasks}
+				/>
+			</Modal>
 		</div>
 	);
 }

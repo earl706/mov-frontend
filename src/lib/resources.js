@@ -8,7 +8,6 @@ export const projectsApi = createResourceHooks('projects', '/projects/');
 export const tasksApi = createResourceHooks('tasks', '/tasks/');
 export const subtasksApi = createResourceHooks('subtasks', '/subtasks/');
 export const habitsApi = createResourceHooks('habits', '/habits/');
-export const notesApi = createResourceHooks('notes', '/notes/');
 export const eventsApi = createResourceHooks('events', '/events/');
 export const focusApi = createResourceHooks('focus-sessions', '/focus-sessions/');
 export const notificationsApi = createResourceHooks('notifications', '/notifications/');

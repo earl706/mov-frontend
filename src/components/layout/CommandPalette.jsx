@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, FolderKanban, Repeat, Search, StickyNote, User } from 'lucide-react';
+import { CheckSquare, FolderKanban, Repeat, Search, User } from 'lucide-react';
 
 import { get } from '../../lib/api';
 import { useUIStore } from '../../stores/uiStore';
 
 const TYPE_META = {
 	task: { icon: CheckSquare, route: '/tasks' },
-	note: { icon: StickyNote, route: '/notes' },
 	project: { icon: FolderKanban, route: '/projects' },
 	habit: { icon: Repeat, route: '/habits' },
 	person: { icon: User, route: '/tasks' }
@@ -55,7 +54,7 @@ function PaletteDialog({ onClose }) {
 					autoFocus
 					value={term}
 					onChange={(e) => setTerm(e.target.value)}
-					placeholder="Search tasks, notes, projects, people…"
+					placeholder="Search tasks, projects, habits, people…"
 					className="text-fg placeholder:text-muted h-14 flex-1 bg-transparent outline-none"
 				/>
 				{isFetching && <span className="text-muted text-xs">…</span>}

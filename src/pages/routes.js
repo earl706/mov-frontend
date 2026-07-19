@@ -39,7 +39,6 @@ export const appRoutes = [
 	},
 	{ path: 'tasks', Component: lazy(() => import('./Tasks')) },
 	{ path: 'habits', Component: lazy(() => import('./Workspace')) },
-	{ path: 'notes', Component: lazy(() => import('./Workspace')) },
 	{ path: 'notifications', Component: lazy(() => import('./Workspace')) },
 	{ path: 'calendar', Component: lazy(() => import('./Calendar')) },
 	{ path: 'focus', Component: lazy(() => import('./Focus')) },

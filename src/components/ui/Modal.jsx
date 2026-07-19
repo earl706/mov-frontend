@@ -23,6 +23,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
 	}, [open, onClose]);
 
 	const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+	const dense = size === 'sm';
 
 	return (
 		<AnimatePresence>
@@ -48,15 +49,23 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
 						exit={{ y: 24, opacity: 0, scale: 0.98 }}
 						transition={{ type: 'spring', stiffness: 320, damping: 30 }}
 					>
-						<div className="border-line flex items-center justify-between border-b p-4">
+						<div
+							className={`border-line flex items-center justify-between border-b ${dense ? 'px-4 py-3' : 'p-4'}`}
+						>
 							<h2 className="text-fg font-semibold">{title}</h2>
 							<Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
 								<X size={18} />
 							</Button>
 						</div>
-						<div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+						<div className={`max-h-[70vh] overflow-y-auto ${dense ? 'p-4' : 'p-5'}`}>
+							{children}
+						</div>
 						{footer && (
-							<div className="border-line flex justify-end gap-2 border-t p-4">{footer}</div>
+							<div
+								className={`border-line flex justify-end gap-2 border-t ${dense ? 'px-4 py-3' : 'p-4'}`}
+							>
+								{footer}
+							</div>
 						)}
 					</motion.div>
 				</motion.div>
