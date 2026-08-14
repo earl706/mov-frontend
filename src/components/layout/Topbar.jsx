@@ -3,14 +3,17 @@ import { useQuery } from '@tanstack/react-query';
 import { Bell, Menu, Search, Timer } from 'lucide-react';
 
 import { get } from '../../lib/api';
-import { formatTimerDisplay } from '../../lib/focusTimerFormat';
 import { cn } from '../../lib/format';
+import { formatTimerDisplay } from '../../lib/timerFormat';
 import { useAuthStore } from '../../stores/authStore';
 import {
-	selectIntervalActive,
-	selectOnBreak,
-	useFocusTimerStore
-} from '../../stores/focusTimerStore';
+	selectAlarmActive,
+	selectDisplaySeconds,
+	selectResting,
+	selectSessionActive,
+	selectTimerRunning,
+	useWorkoutTimerStore
+} from '../../stores/workoutTimerStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Avatar, Button } from '../ui';
 import { ThemeToggle } from './ThemeToggle';
@@ -19,36 +22,45 @@ export function Topbar() {
 	const navigate = useNavigate();
 	const user = useAuthStore((s) => s.user);
 	const { toggleSidebar, openPalette } = useUIStore();
-	const running = useFocusTimerStore((s) => s.running);
-	const remainingSeconds = useFocusTimerStore((s) => s.remainingSeconds);
-	const sessionActive = useFocusTimerStore(selectIntervalActive);
-	const onBreak = useFocusTimerStore(selectOnBreak);
+	const sessionActive = useWorkoutTimerStore(selectSessionActive);
+	const running = useWorkoutTimerStore(selectTimerRunning);
+	const resting = useWorkoutTimerStore(selectResting);
+	const alarmActive = useWorkoutTimerStore(selectAlarmActive);
+	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
 
-	const timerLabel = sessionActive
-		? onBreak
-			? running
-				? `Break running, ${formatTimerDisplay(remainingSeconds)} remaining`
-				: `Break paused, ${formatTimerDisplay(remainingSeconds)} remaining`
-			: running
-				? `Focus timer running, ${formatTimerDisplay(remainingSeconds)} remaining`
-				: `Focus timer paused, ${formatTimerDisplay(remainingSeconds)} remaining`
-		: 'Focus timer inactive';
+	const timerLabel = !sessionActive
+		? 'No workout in progress'
+		: alarmActive
+			? 'Rest over — tap Start set'
+			: resting
+				? `Resting, ${formatTimerDisplay(displaySeconds)} remaining`
+				: running
+					? `Set running, ${formatTimerDisplay(displaySeconds)} elapsed`
+					: 'Workout paused';
 
 	const mobileTimerClass = cn(
 		'relative inline-flex cursor-pointer items-center justify-center rounded-md border p-2 transition-colors sm:hidden',
-		onBreak && running && 'border-success/40 bg-success/10 text-success',
-		onBreak && sessionActive && !running && 'border-success/40 bg-success/10 text-success',
-		!onBreak && running && 'border-primary/40 bg-primary/10 text-primary',
-		!onBreak && sessionActive && !running && 'border-warning/40 bg-warning/10 text-warning',
+		alarmActive && 'border-danger/50 bg-danger/15 text-danger',
+		!alarmActive && resting && 'border-success/40 bg-success/10 text-success',
+		!alarmActive && !resting && running && 'border-primary/40 bg-primary/10 text-primary',
+		!alarmActive &&
+			!resting &&
+			sessionActive &&
+			!running &&
+			'border-warning/40 bg-warning/10 text-warning',
 		!sessionActive && 'border-line bg-surface-2 text-muted'
 	);
 
 	const desktopTimerClass = cn(
 		'hidden cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors sm:inline-flex',
-		onBreak && running && 'border-success/40 bg-success/10 text-success',
-		onBreak && sessionActive && !running && 'border-success/40 bg-success/10 text-success',
-		!onBreak && running && 'border-primary/40 bg-primary/10 text-primary',
-		!onBreak && sessionActive && !running && 'border-warning/40 bg-warning/10 text-warning',
+		alarmActive && 'border-danger/50 bg-danger/15 text-danger',
+		!alarmActive && resting && 'border-success/40 bg-success/10 text-success',
+		!alarmActive && !resting && running && 'border-primary/40 bg-primary/10 text-primary',
+		!alarmActive &&
+			!resting &&
+			sessionActive &&
+			!running &&
+			'border-warning/40 bg-warning/10 text-warning',
 		!sessionActive && 'border-line bg-surface-2 text-muted hover:text-fg'
 	);
 
@@ -77,53 +89,56 @@ export function Topbar() {
 			>
 				<Search size={16} />
 				<span>Search…</span>
-				<kbd className="border-line ml-auto hidden rounded-sm border px-1.5 text-xs sm:inline">⌘K</kbd>
+				<kbd className="border-line ml-auto hidden rounded-sm border px-1.5 text-xs sm:inline">
+					⌘K
+				</kbd>
 			</button>
 
 			<div className="flex flex-1 items-center justify-end gap-1">
 				<button
 					type="button"
-					onClick={() => navigate('/focus')}
+					onClick={() => navigate('/train')}
 					aria-label={timerLabel}
 					className={mobileTimerClass}
 				>
-					<Timer size={18} className={cn(running && 'animate-pulse')} />
-					{running && (
+					<Timer size={18} className={cn((running || alarmActive) && 'animate-pulse')} />
+					{sessionActive && (
 						<span
 							className={cn(
 								'absolute top-1 right-1 h-2 w-2 rounded-full',
-								onBreak ? 'bg-success' : 'bg-primary'
-							)}
-						/>
-					)}
-					{sessionActive && !running && (
-						<span
-							className={cn(
-								'absolute top-1 right-1 h-2 w-2 rounded-full',
-								onBreak ? 'bg-success' : 'bg-warning'
+								alarmActive
+									? 'bg-danger'
+									: resting
+										? 'bg-success'
+										: running
+											? 'bg-primary'
+											: 'bg-warning'
 							)}
 						/>
 					)}
 				</button>
 				<button
 					type="button"
-					onClick={() => navigate('/focus')}
+					onClick={() => navigate('/train')}
 					aria-label={timerLabel}
 					className={desktopTimerClass}
 				>
-					<Timer size={16} className={cn(running && 'animate-pulse')} />
+					<Timer size={16} className={cn((running || alarmActive) && 'animate-pulse')} />
 					<span className="font-mono tabular-nums">
-						{sessionActive ? formatTimerDisplay(remainingSeconds) : onBreak ? 'Break' : 'Focus'}
+						{sessionActive ? formatTimerDisplay(displaySeconds) : 'Workout'}
 					</span>
-					{running && (
+					{sessionActive && (
 						<span
-							className={cn('h-2 w-2 rounded-full', onBreak ? 'bg-success' : 'bg-primary')}
-							aria-hidden="true"
-						/>
-					)}
-					{sessionActive && !running && (
-						<span
-							className={cn('h-2 w-2 rounded-full', onBreak ? 'bg-success' : 'bg-warning')}
+							className={cn(
+								'h-2 w-2 rounded-full',
+								alarmActive
+									? 'bg-danger'
+									: resting
+										? 'bg-success'
+										: running
+											? 'bg-primary'
+											: 'bg-warning'
+							)}
 							aria-hidden="true"
 						/>
 					)}

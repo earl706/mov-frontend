@@ -5,9 +5,9 @@ import { MfaPromptModal, MfaSetupModal } from '../auth/MfaModals';
 import { LoadingScreen } from '../ui';
 import { useAuthStore } from '../../stores/authStore';
 import { CommandPalette } from './CommandPalette';
-import { FocusTimerEngine } from './FocusTimerEngine';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { WorkoutTimerEngine } from './WorkoutTimerEngine';
 
 /** Authenticated app shell: sidebar + topbar + routed content. */
 export function AppLayout() {
@@ -29,7 +29,7 @@ export function AppLayout() {
 				</main>
 			</div>
 			<CommandPalette />
-			<FocusTimerEngine />
+			<WorkoutTimerEngine />
 			<MfaPromptModal
 				open={promptOpen && showMfaPrompt}
 				onClose={() => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LogOut, Settings as SettingsIcon, Shield, SlidersHorizontal } from 'lucide-react';
+import { Dumbbell, LogOut, Scale, Settings as SettingsIcon, Shield } from 'lucide-react';
 
 import { get, patch } from '../lib/api';
 import { toast } from '../stores/toastStore';
@@ -9,14 +9,8 @@ import { useThemeStore } from '../stores/themeStore';
 import { MfaDisableSection, MfaSetupModal } from '../components/auth/MfaModals';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Avatar, Button, Card, CardBody, CardHeader, Input, Select } from '../components/ui';
-
-const WEIGHT_FIELDS = [
-	['weight_importance', 'Importance'],
-	['weight_urgency', 'Urgency'],
-	['weight_deadline', 'Deadline proximity'],
-	['weight_effort', 'Effort (quick wins)'],
-	['weight_completion_history', 'Completion history']
-];
+import { useUpdateWeightProfile, useWeightProfile } from '../lib/resources';
+import { localDateKey } from '../lib/weightFormat';
 
 export default function SettingsPage() {
 	const qc = useQueryClient();
@@ -39,7 +33,8 @@ export default function SettingsPage() {
 		mutationFn: (body) => patch('/auth/profile/', body),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ['profile'] });
-			qc.invalidateQueries({ queryKey: ['tasks'] }); // weights affect priority
+			qc.invalidateQueries({ queryKey: ['body-composition'] });
+			setOverrides({});
 			toast.success('Preferences saved.');
 		},
 		onError: () => toast.error('Could not save preferences.')
@@ -66,11 +61,20 @@ export default function SettingsPage() {
 	const [newEmail, setNewEmail] = useState('');
 	const setField = (key) => (e) => setOverrides((o) => ({ ...o, [key]: e.target.value }));
 
+	const { data: weightProfile } = useWeightProfile();
+	const saveWeight = useUpdateWeightProfile();
+	const [weightOverrides, setWeightOverrides] = useState({});
+	const weightForm = weightProfile ? { ...weightProfile, ...weightOverrides } : null;
+
 	if (!form) return null;
 
 	return (
 		<div>
-			<PageHeader title="Settings" icon={SettingsIcon} description="Tune how Mov adapts to you." />
+			<PageHeader
+				title="Settings"
+				icon={SettingsIcon}
+				description="Account, training defaults, and body goals."
+			/>
 
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 				<Card>
@@ -150,76 +154,266 @@ export default function SettingsPage() {
 					</CardBody>
 				</Card>
 
-				<Card>
-					<CardHeader
-						title="Prioritization weights"
-						subtitle="How much each factor influences task priority"
-					/>
-					<CardBody className="space-y-4">
-						{WEIGHT_FIELDS.map(([key, label]) => (
-							<div key={key}>
-								<div className="mb-1 flex items-center justify-between text-sm">
-									<span className="text-fg">{label}</span>
-									<span className="text-muted font-mono">{Number(form[key]).toFixed(1)}</span>
-								</div>
-								<input
-									type="range"
-									min={0}
-									max={3}
-									step={0.1}
-									value={form[key]}
-									onChange={(e) => setOverrides((o) => ({ ...o, [key]: Number(e.target.value) }))}
-									className="w-full accent-[var(--primary)]"
-									aria-label={label}
-								/>
-							</div>
-						))}
-						<Button
-							onClick={() =>
-								saveProfile.mutate(
-									Object.fromEntries(WEIGHT_FIELDS.map(([k]) => [k, Number(form[k])]))
-								)
-							}
-							loading={saveProfile.isPending}
-						>
-							<SlidersHorizontal size={16} /> Save weights
-						</Button>
-					</CardBody>
-				</Card>
-
 				<Card className="lg:col-span-2">
-					<CardHeader title="Work rhythm" subtitle="Feeds predictive scheduling" />
-					<CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-						<Select label="Chronotype" value={form.chronotype} onChange={setField('chronotype')}>
-							<option value="early">Early bird</option>
-							<option value="balanced">Balanced</option>
-							<option value="night">Night owl</option>
-						</Select>
+					<CardHeader
+						title="Training defaults"
+						subtitle="Applied to new routines and exercises that do not override them"
+						action={<Dumbbell size={18} className="text-muted" />}
+					/>
+					<CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 						<Input
-							label="Daily focus goal (min)"
+							label="Rest between sets (sec)"
 							type="number"
-							min={30}
-							step={15}
-							value={form.daily_focus_goal_minutes}
-							onChange={setField('daily_focus_goal_minutes')}
+							min={0}
+							max={600}
+							step={5}
+							value={form.default_rest_set_seconds ?? 90}
+							onChange={setField('default_rest_set_seconds')}
 						/>
-						<div className="flex items-end">
+						<Input
+							label="Rest between reps (sec)"
+							type="number"
+							min={0}
+							max={120}
+							value={form.default_rest_rep_seconds ?? 0}
+							onChange={setField('default_rest_rep_seconds')}
+						/>
+						<Input
+							label="Rest between exercises (sec)"
+							type="number"
+							min={0}
+							max={600}
+							step={5}
+							value={form.default_rest_exercise_seconds ?? 120}
+							onChange={setField('default_rest_exercise_seconds')}
+						/>
+						<Input
+							label="Workouts per week"
+							type="number"
+							min={1}
+							max={14}
+							value={form.weekly_workout_goal ?? 3}
+							onChange={setField('weekly_workout_goal')}
+						/>
+						<Select
+							label="Length unit"
+							value={form.length_unit || 'cm'}
+							onChange={setField('length_unit')}
+						>
+							<option value="cm">Centimetres (cm)</option>
+							<option value="in">Inches (in)</option>
+						</Select>
+						<label className="text-fg flex items-end gap-2 pb-2 text-sm">
+							<input
+								type="checkbox"
+								checked={!!form.workout_reminder_enabled}
+								onChange={(e) =>
+									setOverrides((o) => ({ ...o, workout_reminder_enabled: e.target.checked }))
+								}
+								className="accent-primary"
+							/>
+							Remind me if I have not trained
+						</label>
+						{form.workout_reminder_enabled && (
+							<Input
+								label="Reminder time"
+								type="time"
+								value={(form.workout_reminder_time || '18:00').slice(0, 5)}
+								onChange={setField('workout_reminder_time')}
+							/>
+						)}
+						<div className="flex items-end sm:col-span-2 lg:col-span-3">
 							<Button
-								variant="secondary"
 								onClick={() =>
 									saveProfile.mutate({
-										chronotype: form.chronotype,
-										daily_focus_goal_minutes: Number(form.daily_focus_goal_minutes)
+										default_rest_set_seconds: Number(form.default_rest_set_seconds ?? 90),
+										default_rest_rep_seconds: Number(form.default_rest_rep_seconds ?? 0),
+										default_rest_exercise_seconds: Number(
+											form.default_rest_exercise_seconds ?? 120
+										),
+										weekly_workout_goal: Number(form.weekly_workout_goal ?? 3),
+										length_unit: form.length_unit || 'cm',
+										workout_reminder_enabled: !!form.workout_reminder_enabled,
+										workout_reminder_time: form.workout_reminder_enabled
+											? form.workout_reminder_time || '18:00'
+											: null
 									})
 								}
 								loading={saveProfile.isPending}
-								className="w-full"
 							>
-								Save rhythm
+								<Dumbbell size={16} /> Save training defaults
 							</Button>
 						</div>
 					</CardBody>
 				</Card>
+
+				{weightForm && (
+					<Card className="lg:col-span-2">
+						<CardHeader
+							title="Body weight"
+							subtitle="Unit, goals, and weigh-in reminders"
+							action={<Scale size={18} className="text-muted" />}
+						/>
+						<CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+							<Select
+								label="Display unit"
+								value={weightForm.unit}
+								onChange={(e) => setWeightOverrides((o) => ({ ...o, unit: e.target.value }))}
+							>
+								<option value="kg">Kilograms (kg)</option>
+								<option value="lb">Pounds (lb)</option>
+							</Select>
+							<Select
+								label="Goal type"
+								value={weightForm.goal_mode}
+								onChange={(e) => setWeightOverrides((o) => ({ ...o, goal_mode: e.target.value }))}
+							>
+								<option value="reach">Reach a target</option>
+								<option value="range">Stay in a range</option>
+								<option value="rate">Lose/gain per week</option>
+							</Select>
+							<Input
+								label={`Starting weight (${weightForm.unit})`}
+								type="number"
+								step="0.01"
+								value={weightForm.start_weight ?? ''}
+								onChange={(e) =>
+									setWeightOverrides((o) => ({
+										...o,
+										start_weight: e.target.value === '' ? null : Number(e.target.value)
+									}))
+								}
+							/>
+							{weightForm.goal_mode === 'reach' && (
+								<Input
+									label={`Target (${weightForm.unit})`}
+									type="number"
+									step="0.01"
+									value={weightForm.target ?? ''}
+									onChange={(e) =>
+										setWeightOverrides((o) => ({
+											...o,
+											target: e.target.value === '' ? null : Number(e.target.value)
+										}))
+									}
+								/>
+							)}
+							{weightForm.goal_mode === 'range' && (
+								<>
+									<Input
+										label={`Range min (${weightForm.unit})`}
+										type="number"
+										step="0.01"
+										value={weightForm.target_min ?? ''}
+										onChange={(e) =>
+											setWeightOverrides((o) => ({
+												...o,
+												target_min: e.target.value === '' ? null : Number(e.target.value)
+											}))
+										}
+									/>
+									<Input
+										label={`Range max (${weightForm.unit})`}
+										type="number"
+										step="0.01"
+										value={weightForm.target_max ?? ''}
+										onChange={(e) =>
+											setWeightOverrides((o) => ({
+												...o,
+												target_max: e.target.value === '' ? null : Number(e.target.value)
+											}))
+										}
+									/>
+								</>
+							)}
+							{weightForm.goal_mode === 'rate' && (
+								<Input
+									label={`Weekly rate (${weightForm.unit}/wk)`}
+									type="number"
+									step="0.01"
+									value={weightForm.weekly_rate ?? ''}
+									onChange={(e) =>
+										setWeightOverrides((o) => ({
+											...o,
+											weekly_rate: e.target.value === '' ? null : Number(e.target.value)
+										}))
+									}
+								/>
+							)}
+							<Input
+								label="Journey start date"
+								type="date"
+								value={weightForm.start_date || ''}
+								onChange={(e) =>
+									setWeightOverrides((o) => ({ ...o, start_date: e.target.value || null }))
+								}
+							/>
+							<Input
+								label="Lock entries after (days)"
+								type="number"
+								min={0}
+								max={365}
+								value={weightForm.edit_lock_days ?? 7}
+								onChange={(e) =>
+									setWeightOverrides((o) => ({
+										...o,
+										edit_lock_days: Number(e.target.value)
+									}))
+								}
+							/>
+							<label className="text-fg flex items-end gap-2 pb-2 text-sm">
+								<input
+									type="checkbox"
+									checked={!!weightForm.reminder_enabled}
+									onChange={(e) =>
+										setWeightOverrides((o) => ({
+											...o,
+											reminder_enabled: e.target.checked
+										}))
+									}
+									className="accent-primary"
+								/>
+								Reminder if not logged
+							</label>
+							{weightForm.reminder_enabled && (
+								<Input
+									label="Reminder time"
+									type="time"
+									value={(weightForm.reminder_time || '09:00').slice(0, 5)}
+									onChange={(e) =>
+										setWeightOverrides((o) => ({ ...o, reminder_time: e.target.value }))
+									}
+								/>
+							)}
+							<div className="flex items-end sm:col-span-2 lg:col-span-3">
+								<Button
+									onClick={() => {
+										const body = {
+											unit: weightForm.unit,
+											goal_mode: weightForm.goal_mode,
+											start_date: weightForm.start_date || localDateKey(),
+											edit_lock_days: Number(weightForm.edit_lock_days ?? 7),
+											reminder_enabled: !!weightForm.reminder_enabled,
+											reminder_time: weightForm.reminder_enabled ? weightForm.reminder_time : null,
+											onboarding_complete: true,
+											start_weight_input: weightForm.start_weight,
+											target_input: weightForm.target,
+											target_min_input: weightForm.target_min,
+											target_max_input: weightForm.target_max,
+											weekly_rate_input: weightForm.weekly_rate
+										};
+										saveWeight.mutate(body, {
+											onSuccess: () => setWeightOverrides({})
+										});
+									}}
+									loading={saveWeight.isPending}
+								>
+									<Scale size={16} /> Save body settings
+								</Button>
+							</div>
+						</CardBody>
+					</Card>
+				)}
 			</div>
 			<MfaSetupModal open={mfaSetupOpen} onClose={() => setMfaSetupOpen(false)} />
 		</div>

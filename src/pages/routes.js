@@ -29,18 +29,18 @@ export const publicRoutes = [
 
 export const appRoutes = [
 	{ path: '/', Component: lazy(() => import('./Dashboard')) },
+	{ path: 'train', Component: lazy(() => import('./Train')) },
 	{
-		path: 'projects',
-		Component: lazy(() => import('./Projects').then((m) => ({ default: m.ProjectsPage })))
+		path: 'routines',
+		Component: lazy(() => import('./Routines').then((m) => ({ default: m.RoutinesPage })))
 	},
 	{
-		path: 'projects/:id',
-		Component: lazy(() => import('./Projects').then((m) => ({ default: m.ProjectDetailPage })))
+		path: 'routines/:id',
+		Component: lazy(() => import('./Routines').then((m) => ({ default: m.RoutineDetailPage })))
 	},
-	{ path: 'tasks', Component: lazy(() => import('./Tasks')) },
-	{ path: 'habits', Component: lazy(() => import('./Workspace')) },
-	{ path: 'notifications', Component: lazy(() => import('./Workspace')) },
-	{ path: 'calendar', Component: lazy(() => import('./Calendar')) },
-	{ path: 'focus', Component: lazy(() => import('./Focus')) },
+	{ path: 'exercises', Component: lazy(() => import('./Exercises')) },
+	{ path: 'history', Component: lazy(() => import('./History')) },
+	{ path: 'body', Component: lazy(() => import('./Body')) },
+	{ path: 'notifications', Component: lazy(() => import('./Notifications')) },
 	{ path: 'settings', Component: lazy(() => import('./Settings')) }
 ];

@@ -2,16 +2,17 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, FolderKanban, Repeat, Search, User } from 'lucide-react';
+import { Dumbbell, History, ListChecks, Ruler, Scale, Search } from 'lucide-react';
 
 import { get } from '../../lib/api';
 import { useUIStore } from '../../stores/uiStore';
 
 const TYPE_META = {
-	task: { icon: CheckSquare, route: '/tasks' },
-	project: { icon: FolderKanban, route: '/projects' },
-	habit: { icon: Repeat, route: '/habits' },
-	person: { icon: User, route: '/tasks' }
+	exercise: { icon: Dumbbell, route: () => '/exercises' },
+	routine: { icon: ListChecks, route: (result) => `/routines/${result.id}` },
+	session: { icon: History, route: () => '/history' },
+	weight: { icon: Scale, route: () => '/body' },
+	measurement: { icon: Ruler, route: () => '/body' }
 };
 
 /**
@@ -34,9 +35,9 @@ function PaletteDialog({ onClose }) {
 		enabled: debounced.length > 1
 	});
 
-	const goTo = (group) => {
+	const goTo = (group, result) => {
 		onClose();
-		navigate(TYPE_META[group.type]?.route || '/');
+		navigate(TYPE_META[group.type]?.route(result) || '/');
 	};
 
 	return (
@@ -54,7 +55,7 @@ function PaletteDialog({ onClose }) {
 					autoFocus
 					value={term}
 					onChange={(e) => setTerm(e.target.value)}
-					placeholder="Search tasks, projects, habits, people…"
+					placeholder="Search exercises, routines, workouts, weigh-ins…"
 					className="text-fg placeholder:text-muted h-14 flex-1 bg-transparent outline-none"
 				/>
 				{isFetching && <span className="text-muted text-xs">…</span>}
@@ -77,7 +78,7 @@ function PaletteDialog({ onClose }) {
 							{group.results.map((result) => (
 								<button
 									key={`${group.type}-${result.id}`}
-									onClick={() => goTo(group)}
+									onClick={() => goTo(group, result)}
 									className="hover:bg-surface-2 flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-left text-sm"
 								>
 									<Icon size={16} className="text-muted" />

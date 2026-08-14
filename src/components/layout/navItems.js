@@ -1,16 +1,21 @@
-import { LayoutDashboard, FolderKanban, CheckSquare, Repeat, Calendar, Timer } from 'lucide-react';
+import { Dumbbell, History, LayoutDashboard, ListChecks, Scale, Timer } from 'lucide-react';
 
 /** Primary navigation, grouped for the sidebar. `end` marks exact-match links. */
 export const navGroups = [
 	{
-		label: 'Workspace',
+		label: 'Train',
 		items: [
 			{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-			{ to: '/projects', label: 'Projects', icon: FolderKanban },
-			{ to: '/tasks', label: 'Tasks', icon: CheckSquare },
-			{ to: '/habits', label: 'Habits', icon: Repeat },
-			{ to: '/calendar', label: 'Calendar', icon: Calendar },
-			{ to: '/focus', label: 'Focus', icon: Timer }
+			{ to: '/train', label: 'Workout', icon: Timer },
+			{ to: '/routines', label: 'Routines', icon: ListChecks },
+			{ to: '/exercises', label: 'Exercises', icon: Dumbbell }
+		]
+	},
+	{
+		label: 'Progress',
+		items: [
+			{ to: '/history', label: 'History', icon: History },
+			{ to: '/body', label: 'Body', icon: Scale }
 		]
 	}
 ];
