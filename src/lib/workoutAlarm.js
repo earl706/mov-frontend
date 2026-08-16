@@ -1,6 +1,8 @@
 let audioCtx = null;
 let alarmInterval = null;
 let alarmTimeout = null;
+/** Master fader for every oscillator. Stop disconnects it so in-flight notes die now. */
+let outputGain = null;
 
 /** An unattended alarm stops itself so a phone left on the bench goes quiet. */
 export const WORKOUT_ALARM_MAX_MS = 60000;
@@ -36,9 +38,34 @@ function playOsc(ctx, when, freq, { duration, type, volume }) {
 	gain.gain.exponentialRampToValueAtTime(volume, when + 0.02);
 	gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
 	osc.connect(gain);
-	gain.connect(ctx.destination);
+	gain.connect(getOutput(ctx));
 	osc.start(when);
 	osc.stop(when + duration);
+}
+
+function getOutput(ctx) {
+	if (!outputGain) {
+		outputGain = ctx.createGain();
+		outputGain.gain.value = 1;
+		outputGain.connect(ctx.destination);
+	}
+	return outputGain;
+}
+
+/** Mute and drop the current graph so leftover notes cannot keep ringing. */
+function cutAlarmAudio() {
+	if (!outputGain) return;
+	try {
+		if (audioCtx) {
+			const t = audioCtx.currentTime;
+			outputGain.gain.cancelScheduledValues(t);
+			outputGain.gain.setValueAtTime(0, t);
+		}
+		outputGain.disconnect();
+	} catch {
+		/* already disconnected */
+	}
+	outputGain = null;
 }
 
 function tone(ctx, when, freq, { duration = 0.5, type = 'sine', volume = 0.85 } = {}) {
@@ -127,4 +154,5 @@ export function stopWorkoutAlarm() {
 	if (alarmTimeout != null) window.clearTimeout(alarmTimeout);
 	alarmInterval = null;
 	alarmTimeout = null;
+	cutAlarmAudio();
 }

@@ -19,7 +19,8 @@ import { DEFAULT_WORKOUT_ALARM_SOUND, stopWorkoutAlarm } from '../lib/workoutAla
  *   rest_exercise — prescribed rest after the last set, before the next exercise
  *
  * After the first Start set, Stop set logs and begins rest. When rest ends the
- * alarm plays until the user taps Start set (or Skip rest during the countdown).
+ * alarm plays until the user taps Start set. Start set during a countdown skips
+ * the remaining rest and begins work.
  */
 
 const REST_PHASES = new Set(['rest_rep', 'rest_set', 'rest_exercise']);
@@ -194,11 +195,11 @@ export const useWorkoutTimerStore = create(
 			startSet: () => {
 				const s = get();
 				if (s.phase === 'work' && s.running) return;
+				stopWorkoutAlarm();
 				if (s.phase === 'rest_exercise') {
 					get().completeRestAndStart();
 					return;
 				}
-				stopWorkoutAlarm();
 				// Starting early cuts a rest short; the part already served counts.
 				const carried =
 					s.phase === 'rest_set'

@@ -93,8 +93,6 @@ export function WorkoutTimerEngine() {
 				? 'Resting'
 				: 'Workout in progress';
 
-	const startLabel = phase === 'rest_rep' ? 'Resume set' : 'Start set';
-
 	return (
 		<div className="fixed bottom-6 left-1/2 z-50 w-[min(100%,26rem)] -translate-x-1/2 px-4 sm:px-0">
 			<div
@@ -108,7 +106,7 @@ export function WorkoutTimerEngine() {
 					<p className="text-fg text-sm font-medium">{restLabel}</p>
 					<p className="text-muted mt-0.5 truncate text-xs">
 						{alarmActive
-							? `Tap ${startLabel} to continue · ${exerciseName || 'Workout'}`
+							? `Tap Start set to continue · ${exerciseName || 'Workout'}`
 							: `${exerciseName || 'Workout'} · ${formatTimerDisplay(displaySeconds)}`}
 					</p>
 				</div>
@@ -121,7 +119,7 @@ export function WorkoutTimerEngine() {
 							</Button>
 							<Button size="sm" onClick={startSet}>
 								<Play size={15} />
-								{startLabel}
+								Start set
 							</Button>
 						</>
 					) : (

@@ -1,18 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-	Check,
-	ChevronRight,
-	Dumbbell,
-	Minus,
-	Pause,
-	Play,
-	Plus,
-	SkipForward,
-	Square,
-	Timer,
-	Trash2
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { Check, Dumbbell, Pause, Play, Square, Timer, Trash2 } from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
 import {
@@ -25,6 +14,7 @@ import {
 	Input,
 	LoadingScreen,
 	Modal,
+	ProgressRing,
 	Select
 } from '../components/ui';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
@@ -34,7 +24,6 @@ import {
 	routinesApi,
 	useAbandonSession,
 	useActiveSession,
-	useAdjustSessionExercise,
 	useCompleteSession,
 	useStartSession,
 	useSuggestedRoutine
@@ -42,8 +31,8 @@ import {
 import { isExerciseFinished, loggedSets } from '../lib/workoutSession';
 import {
 	selectDisplaySeconds,
+	selectRestRemaining,
 	selectResting,
-	selectWorkSeconds,
 	useWorkoutTimerStore
 } from '../stores/workoutTimerStore';
 
@@ -142,95 +131,53 @@ function RoutinePicker() {
 }
 
 // -----------------------------------------------------------------------------
-// Per-session overrides (never written back to the routine)
+// Compact session progress (reps this set, sets this exercise, session sets)
 // -----------------------------------------------------------------------------
 
-function ExerciseRow({ session, sessionExercise, isCurrent, onFocus }) {
-	const adjust = useAdjustSessionExercise();
-	const done = loggedSets(sessionExercise);
-	const finished = isExerciseFinished(sessionExercise);
+function SessionProgress({ sessionExercise, totals }) {
+	const timer = useWorkoutTimerStore();
+	const isHold = sessionExercise?.track_mode === 'hold';
+	const sameExercise = sessionExercise && timer.sessionExerciseId === sessionExercise.id;
+	const repsDone = sameExercise ? timer.repsDone : 0;
+	const repsGoal = sessionExercise ? (isHold ? 1 : sessionExercise.planned_reps || 1) : 0;
+	const setsDone = sessionExercise ? loggedSets(sessionExercise) : 0;
+	const setsGoal = sessionExercise ? Math.max(1, sessionExercise.planned_sets) : 0;
 
-	const changeSets = (delta) => {
-		const next = Math.max(done, Math.min(30, sessionExercise.planned_sets + delta));
-		if (next === sessionExercise.planned_sets) return;
-		adjust.mutate({
-			sessionId: session.id,
-			exerciseId: sessionExercise.id,
-			planned_sets: next
-		});
-	};
+	const rings = [
+		{
+			key: 'reps',
+			caption: isHold ? 'Hold' : 'Reps',
+			value: repsGoal ? (repsDone / repsGoal) * 100 : 0,
+			label: sessionExercise ? `${repsDone}/${repsGoal}` : '—'
+		},
+		{
+			key: 'sets',
+			caption: 'Sets',
+			value: setsGoal ? (setsDone / setsGoal) * 100 : 0,
+			label: sessionExercise ? `${setsDone}/${setsGoal}` : '—'
+		},
+		{
+			key: 'session',
+			caption: 'Session',
+			value: totals.planned ? (totals.done / totals.planned) * 100 : 0,
+			label: `${totals.done}/${totals.planned}`
+		}
+	];
 
 	return (
-		<div
-			className={cn(
-				'border-line rounded-md border px-3 py-2.5',
-				isCurrent && 'border-primary/50 bg-primary/5',
-				sessionExercise.skipped && 'opacity-60'
-			)}
-		>
-			<div className="flex items-center gap-3">
-				<button
-					type="button"
-					onClick={onFocus}
-					disabled={sessionExercise.skipped}
-					className="min-w-0 flex-1 cursor-pointer text-left disabled:cursor-not-allowed"
-				>
-					<p className="text-fg truncate text-sm font-medium">
-						{sessionExercise.exercise_name}
-						{sessionExercise.per_side && (
-							<span className="text-muted ml-1 text-xs">(per side)</span>
-						)}
-					</p>
-					<p className="text-muted text-xs">
-						{done}/{sessionExercise.planned_sets} sets · {describePrescription(sessionExercise)}
-					</p>
-				</button>
-				{finished && !sessionExercise.skipped && (
-					<Badge tone="success">
-						<Check size={12} />
-						Done
-					</Badge>
-				)}
-				{sessionExercise.skipped && <Badge>Skipped</Badge>}
-			</div>
-
-			<div className="mt-2 flex flex-wrap items-center gap-1.5">
-				<button
-					type="button"
-					onClick={() => changeSets(-1)}
-					className="border-line text-muted hover:text-fg cursor-pointer rounded-sm border p-1"
-					aria-label={`Reduce sets for ${sessionExercise.exercise_name}`}
-				>
-					<Minus size={13} />
-				</button>
-				<button
-					type="button"
-					onClick={() => changeSets(1)}
-					className="border-line text-muted hover:text-fg cursor-pointer rounded-sm border p-1"
-					aria-label={`Add a set to ${sessionExercise.exercise_name}`}
-				>
-					<Plus size={13} />
-				</button>
-				<button
-					type="button"
-					onClick={() =>
-						adjust.mutate({
-							sessionId: session.id,
-							exerciseId: sessionExercise.id,
-							skipped: !sessionExercise.skipped
-						})
-					}
-					className="border-line text-muted hover:text-fg ml-1 cursor-pointer rounded-sm border px-2 py-1 text-xs"
-				>
-					{sessionExercise.skipped ? 'Restore' : 'Skip today'}
-				</button>
-				{sessionExercise.progression?.suggestion && !finished && (
-					<span className="text-muted ml-auto text-xs">
-						{sessionExercise.progression.suggestion}
-					</span>
-				)}
-			</div>
-		</div>
+		<Card className="lg:col-span-2">
+			<CardHeader title="Progress" subtitle="This set, this exercise, this workout" />
+			<CardBody>
+				<div className="grid grid-cols-3 gap-2">
+					{rings.map((ring) => (
+						<div key={ring.key} className="flex flex-col items-center gap-1.5">
+							<ProgressRing value={ring.value} size={72} stroke={6} label={ring.label} />
+							<p className="text-muted text-xs">{ring.caption}</p>
+						</div>
+					))}
+				</div>
+			</CardBody>
+		</Card>
 	);
 }
 
@@ -242,9 +189,17 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 	const { finishSet, logging } = useWorkoutAutoAdvance();
 	const timer = useWorkoutTimerStore();
 	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
-	const workSeconds = useWorkoutTimerStore(selectWorkSeconds);
+	const restRemaining = useWorkoutTimerStore(selectRestRemaining);
 	const resting = useWorkoutTimerStore(selectResting);
 	const alarmActive = timer.alarmActive;
+	const working = timer.phase === 'work';
+	const restOrAlarm = resting || alarmActive;
+	const restTotal =
+		timer.restEndAt != null && timer.restStartedAt != null
+			? (timer.restEndAt - timer.restStartedAt) / 1000
+			: 0;
+	const restPct = restTotal > 0 ? (restRemaining / restTotal) * 100 : 0;
+	const ringTone = alarmActive ? 'danger' : resting ? 'success' : 'primary';
 
 	// Re-render every second while a clock is moving.
 	const ticking = timer.running || timer.restEndAt != null;
@@ -255,7 +210,6 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 	}, [ticking]);
 
 	const isHold = timer.trackMode === 'hold';
-	const nextName = timer.pendingNextExercise?.exercise_name;
 	const headerExercise =
 		timer.phase === 'rest_exercise' && timer.pendingNextExercise
 			? timer.pendingNextExercise
@@ -271,11 +225,9 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 			? 'Rep rest over'
 			: 'Rest over'
 		: timer.phase === 'rest_exercise'
-			? nextName
-				? `Rest before ${nextName}`
-				: 'Rest between exercises'
+			? 'Rest'
 			: timer.phase === 'rest_set'
-				? 'Rest between sets'
+				? 'Rest'
 				: timer.phase === 'rest_rep'
 					? 'Rest between reps'
 					: timer.phase === 'work'
@@ -304,97 +256,118 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 				}
 			/>
 			<CardBody className="space-y-4">
-				<div className="flex flex-col items-center gap-1">
-					<p
-						className={cn(
-							'font-mono text-5xl font-semibold tabular-nums sm:text-6xl',
-							alarmActive && 'text-danger animate-pulse',
-							!alarmActive && resting && 'text-success',
-							!alarmActive && !resting && timer.running && 'text-primary',
-							!alarmActive && !resting && !timer.running && 'text-fg'
-						)}
+				<div className="flex justify-center">
+					<ProgressRing
+						value={restPct}
+						size={240}
+						stroke={8}
+						tone={ringTone}
+						aria-label={resting ? 'Rest remaining' : 'Set timer'}
 					>
-						{formatTimerDisplay(displaySeconds)}
-					</p>
-					<p className="text-muted text-xs">
-						{alarmActive
-							? timer.phase === 'rest_rep'
-								? 'Tap Resume set to keep going.'
-								: 'Tap Start set when you are ready.'
-							: timer.phase === 'rest_exercise'
-								? 'Rest between exercises. The next set waits for Start set.'
-								: resting
-									? 'Rest between sets. The next set waits for Start set.'
-									: isHold
-										? `Target ${timer.plannedHoldSeconds}s · ${workSeconds}s held`
-										: `${workSeconds}s under tension`}
-					</p>
+						<p
+							className={cn(
+								'font-mono text-5xl font-semibold tabular-nums transition-colors duration-300 sm:text-6xl',
+								alarmActive && 'text-danger animate-pulse',
+								!alarmActive && resting && 'text-success',
+								!alarmActive && !resting && timer.running && 'text-primary',
+								!alarmActive && !resting && !timer.running && 'text-fg'
+							)}
+						>
+							{formatTimerDisplay(displaySeconds)}
+						</p>
+					</ProgressRing>
 				</div>
 
-				{resting && !alarmActive ? (
-					<div className="flex flex-wrap items-center justify-center gap-2">
-						<Button variant="ghost" onClick={() => timer.addRestSeconds(-15)}>
-							−15s
-						</Button>
-						<Button variant="ghost" onClick={() => timer.addRestSeconds(15)}>
-							+15s
-						</Button>
-						<Button onClick={() => timer.skipRest()}>
-							<SkipForward size={16} />
-							Skip rest
-						</Button>
-					</div>
-				) : (
-					<div className="flex flex-wrap items-center justify-center gap-2">
-						{timer.running ? (
-							<Button variant="secondary" onClick={timer.pauseSet}>
-								<Pause size={16} />
-								Pause
-							</Button>
-						) : (
-							<Button
-								onClick={timer.startSet}
-								className={alarmActive ? 'animate-pulse' : undefined}
-							>
-								<Play size={16} />
-								{timer.phase === 'rest_rep' || workSeconds > 0 ? 'Resume set' : 'Start set'}
-							</Button>
-						)}
-						{!isHold && (
-							<div className="border-line flex items-center gap-2 rounded-md border px-2 py-1">
-								<button
-									type="button"
-									onClick={timer.removeRep}
-									className="text-muted hover:text-fg cursor-pointer p-1"
-									aria-label="Remove a rep"
+				<div className="space-y-2">
+					<div className="relative h-10">
+						<AnimatePresence initial={false}>
+							{working ? (
+								<motion.div
+									key="stop"
+									className="absolute inset-0"
+									initial={{ opacity: 0, y: 8 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -8 }}
+									transition={{ duration: 0.2, ease: 'easeOut' }}
 								>
-									<Minus size={14} />
-								</button>
-								<span className="text-fg min-w-14 text-center text-sm font-medium tabular-nums">
-									{timer.repsDone} / {timer.plannedReps} reps
-								</span>
-								<button
-									type="button"
-									onClick={timer.countRep}
-									disabled={timer.phase !== 'work'}
-									className="text-muted hover:text-fg cursor-pointer p-1 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Count a rep"
+									<Button
+										variant="primary"
+										onClick={() => submitSet()}
+										loading={logging}
+										disabled={!working}
+										className="h-10 w-full justify-center"
+									>
+										<Square size={16} />
+										Stop set
+									</Button>
+								</motion.div>
+							) : (
+								<motion.div
+									key="start"
+									className="absolute inset-0"
+									initial={{ opacity: 0, y: 8 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -8 }}
+									transition={{ duration: 0.2, ease: 'easeOut' }}
 								>
-									<Plus size={14} />
-								</button>
-							</div>
-						)}
-						<Button
-							variant="primary"
-							onClick={() => submitSet()}
-							loading={logging}
-							disabled={timer.phase !== 'work'}
-						>
-							<Square size={15} />
-							Stop set
-						</Button>
+									<Button
+										onClick={timer.startSet}
+										disabled={working}
+										className={cn(
+											'h-10 w-full justify-center',
+											alarmActive && 'animate-pulse'
+										)}
+									>
+										<Play size={16} />
+										Start set
+									</Button>
+								</motion.div>
+							)}
+						</AnimatePresence>
 					</div>
-				)}
+					<div className="relative h-10">
+						<AnimatePresence initial={false}>
+							{working && !timer.running ? (
+								<motion.div
+									key="resume"
+									className="absolute inset-0"
+									initial={{ opacity: 0, y: 8 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -8 }}
+									transition={{ duration: 0.2, ease: 'easeOut' }}
+								>
+									<Button
+										variant="secondary"
+										onClick={timer.startSet}
+										className="h-10 w-full justify-center"
+									>
+										<Play size={16} />
+										Resume
+									</Button>
+								</motion.div>
+							) : (
+								<motion.div
+									key="pause"
+									className="absolute inset-0"
+									initial={{ opacity: 0, y: 8 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -8 }}
+									transition={{ duration: 0.2, ease: 'easeOut' }}
+								>
+									<Button
+										variant="secondary"
+										onClick={timer.pauseSet}
+										disabled={!working || !timer.running}
+										className="h-10 w-full justify-center"
+									>
+										<Pause size={16} />
+										Pause
+									</Button>
+								</motion.div>
+							)}
+						</AnimatePresence>
+					</div>
+				</div>
 
 				<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
 					<Input
@@ -425,19 +398,12 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 							className="w-full"
 							onClick={() => submitSet({ skipped: true })}
 							loading={logging}
-							disabled={resting}
+							disabled={restOrAlarm}
 						>
 							Skip this set
 						</Button>
 					</div>
 				</div>
-
-				{timer.restRepSeconds > 0 && !isHold && (
-					<p className="text-muted text-center text-xs">
-						Counting a rep starts a {timer.restRepSeconds}s rep rest. Rep rests are logged as rest,
-						not work.
-					</p>
-				)}
 			</CardBody>
 		</Card>
 	);
@@ -461,7 +427,6 @@ export default function TrainPage() {
 	const loadSet = useWorkoutTimerStore((s) => s.loadSet);
 	const storedSessionId = useWorkoutTimerStore((s) => s.sessionId);
 	const storedExerciseId = useWorkoutTimerStore((s) => s.sessionExerciseId);
-	const [focusedId, setFocusedId] = useState(null);
 
 	useEffect(() => {
 		if (session) attachSession({ id: session.id, name: session.template_name });
@@ -471,12 +436,7 @@ export default function TrainPage() {
 	const exercises = useMemo(() => session?.exercises || [], [session]);
 
 	/** The exercise the timer should be pointing at right now. */
-	const current = useMemo(() => {
-		const focused = exercises.find(
-			(e) => e.id === focusedId && !e.skipped && !isExerciseFinished(e)
-		);
-		return focused || exercises.find((e) => !isExerciseFinished(e)) || null;
-	}, [exercises, focusedId]);
+	const current = useMemo(() => exercises.find((e) => !isExerciseFinished(e)) || null, [exercises]);
 
 	// Keep the timer's prescription in sync with the server's view of progress.
 	// Do not clobber an in-progress set or rest countdown.
@@ -562,20 +522,7 @@ export default function TrainPage() {
 					)}
 				</div>
 
-				<Card className="lg:col-span-2">
-					<CardHeader title="Session plan" subtitle="Adjust today without editing the routine" />
-					<CardBody className="space-y-2">
-						{exercises.map((sessionExercise) => (
-							<ExerciseRow
-								key={sessionExercise.id}
-								session={session}
-								sessionExercise={sessionExercise}
-								isCurrent={current?.id === sessionExercise.id}
-								onFocus={() => setFocusedId(sessionExercise.id)}
-							/>
-						))}
-					</CardBody>
-				</Card>
+				<SessionProgress sessionExercise={current} totals={totals} />
 			</div>
 
 			<Modal
@@ -618,13 +565,6 @@ export default function TrainPage() {
 					/>
 				</div>
 			</Modal>
-
-			<p className="text-muted mt-4 flex items-center gap-1 text-xs">
-				The timer keeps running if you navigate away.
-				<Link to="/history" className="text-primary inline-flex items-center hover:underline">
-					Past workouts <ChevronRight size={12} />
-				</Link>
-			</p>
 		</div>
 	);
 }
