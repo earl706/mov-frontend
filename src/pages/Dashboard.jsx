@@ -64,26 +64,67 @@ function greeting() {
 }
 
 /** The one thing the dashboard is really for: did you train today, and what's next. */
-function TodayCard({ training, activeSession, suggested }) {
+function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 	const navigate = useNavigate();
 	const start = useStartSession();
 	const goalPct = training.weekly_goal
 		? Math.min(100, Math.round((training.sessions_this_week / training.weekly_goal) * 100))
 		: 0;
 
+	let statusBadge;
+	if (training.trained_today) {
+		statusBadge = (
+			<Badge tone="success">
+				<Check size={12} />
+				Worked out today
+			</Badge>
+		);
+	} else if (todayIsRest) {
+		statusBadge = <Badge>Rest day</Badge>;
+	} else {
+		statusBadge = <Badge tone="primary">Not trained yet today</Badge>;
+	}
+
+	let action;
+	if (activeSession) {
+		action = (
+			<Button onClick={() => navigate('/train')}>
+				<Timer size={16} />
+				Resume workout
+			</Button>
+		);
+	} else if (suggested) {
+		action = (
+			<Button
+				onClick={() =>
+					start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
+				}
+				loading={start.isPending}
+			>
+				<Play size={16} />
+				Start {suggested.name}
+			</Button>
+		);
+	} else if (todayIsRest) {
+		action = (
+			<Button variant="secondary" onClick={() => navigate('/train')}>
+				Train anyway
+			</Button>
+		);
+	} else {
+		action = <Button onClick={() => navigate('/routines')}>Build a routine</Button>;
+	}
+
 	return (
-		<Card className={training.trained_today ? 'border-success/40' : 'border-primary/40'}>
-			<CardBody className="flex flex-col gap-4 sm:flex-row sm:items-center">
+		<Card
+			className={
+				training.trained_today ? 'border-success/40' : todayIsRest ? '' : 'border-primary/40'
+			}
+		>
+			<CardBody className="flex flex-col gap-4 pt-5 sm:flex-row sm:items-center">
 				<ProgressRing value={goalPct} size={84} />
 				<div className="min-w-0 flex-1">
-					{training.trained_today ? (
-						<Badge tone="success">
-							<Check size={12} />
-							Worked out today
-						</Badge>
-					) : (
-						<Badge tone="primary">Not trained yet today</Badge>
-					)}
+					{statusBadge}
 					<p className="text-fg mt-1.5 text-base font-semibold">
 						{training.sessions_this_week} of {training.weekly_goal} sessions this week
 					</p>
@@ -93,24 +134,7 @@ function TodayCard({ training, activeSession, suggested }) {
 					</p>
 				</div>
 				<div className="flex shrink-0 flex-col items-stretch gap-2">
-					{activeSession ? (
-						<Button onClick={() => navigate('/train')}>
-							<Timer size={16} />
-							Resume workout
-						</Button>
-					) : suggested ? (
-						<Button
-							onClick={() =>
-								start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
-							}
-							loading={start.isPending}
-						>
-							<Play size={16} />
-							Start {suggested.name}
-						</Button>
-					) : (
-						<Button onClick={() => navigate('/routines')}>Build a routine</Button>
-					)}
+					{action}
 					<Button variant="ghost" size="sm" onClick={() => navigate('/history')}>
 						View history
 					</Button>
@@ -184,6 +208,7 @@ export default function Dashboard() {
 						training={training}
 						activeSession={data.active_session}
 						suggested={data.suggested_routine}
+						todayIsRest={data.today_is_rest}
 					/>
 				</motion.div>
 

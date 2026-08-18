@@ -19,8 +19,9 @@ import { DEFAULT_WORKOUT_ALARM_SOUND, stopWorkoutAlarm } from '../lib/workoutAla
  *   rest_exercise — prescribed rest after the last set, before the next exercise
  *
  * After the first Start set, Stop set logs and begins rest. When rest ends the
- * alarm plays until the user taps Start set. Start set during a countdown skips
- * the remaining rest and begins work.
+ * alarm plays until the user taps Start set. Time from the alarm until Start set
+ * is added to that next set's rest_seconds (set and exercise rest only).
+ * Start set during a countdown skips the remaining rest and begins work.
  */
 
 const REST_PHASES = new Set(['rest_rep', 'rest_set', 'rest_exercise']);
@@ -114,6 +115,14 @@ function snapshotPending(sessionExercise) {
 	};
 }
 
+/** Seconds still accruing on an open rest clock (countdown or post-alarm wait). */
+function openRestSeconds(s) {
+	if (s.restStartedAt == null) return 0;
+	if (REST_PHASES.has(s.phase)) return elapsedSince(s.restStartedAt);
+	if (s.phase === 'idle' && s.restEndAt == null) return elapsedSince(s.restStartedAt);
+	return 0;
+}
+
 /** Seconds of work banked so far on the current set, running or paused. */
 export function selectWorkSeconds(s) {
 	return s.workAccumulated + (s.running && s.phase === 'work' ? elapsedSince(s.workStartedAt) : 0);
@@ -176,7 +185,7 @@ export const useWorkoutTimerStore = create(
 					workStartedAt: null,
 					workAccumulated: 0,
 					restEndAt: null,
-					restStartedAt: null,
+					restStartedAt: options.alarmKind === 'rest_exercise' ? nowMs() : null,
 					restAccumulated: 0,
 					carriedRestSeconds: options.carriedRestSeconds ?? 0,
 					repsDone: 0,
@@ -201,9 +210,10 @@ export const useWorkoutTimerStore = create(
 					return;
 				}
 				// Starting early cuts a rest short; the part already served counts.
+				// After the alarm, restStartedAt is the wait until Start set.
 				const carried =
-					s.phase === 'rest_set'
-						? s.carriedRestSeconds + elapsedSince(s.restStartedAt)
+					s.phase === 'rest_set' || (s.phase === 'idle' && s.restStartedAt != null)
+						? s.carriedRestSeconds + openRestSeconds(s)
 						: s.carriedRestSeconds;
 				const rested =
 					s.phase === 'rest_rep'
@@ -298,10 +308,7 @@ export const useWorkoutTimerStore = create(
 				const s = get();
 				const workSeconds =
 					s.workAccumulated + (s.running && s.phase === 'work' ? elapsedSince(s.workStartedAt) : 0);
-				const restSeconds =
-					s.carriedRestSeconds +
-					s.restAccumulated +
-					(REST_PHASES.has(s.phase) ? elapsedSince(s.restStartedAt) : 0);
+				const restSeconds = s.carriedRestSeconds + s.restAccumulated + openRestSeconds(s);
 				const isHold = s.trackMode === 'hold';
 				const load = Number(s.loadInput);
 				const rpe = Number(s.rpeInput);
@@ -436,8 +443,8 @@ export const useWorkoutTimerStore = create(
 			},
 
 			/**
-			 * Rest timed out: book the rest that was served and wait for Start set.
-			 * Skip rest still calls completeRestAndStart to begin work immediately.
+			 * Rest timed out: book the prescribed rest and keep a clock running for
+			 * the wait until Start set (set and exercise rest only).
 			 */
 			onRestElapsed: (kind) => {
 				const s = get();
@@ -456,7 +463,7 @@ export const useWorkoutTimerStore = create(
 						phase: 'idle',
 						carriedRestSeconds: s.carriedRestSeconds + elapsedSince(s.restStartedAt),
 						restEndAt: null,
-						restStartedAt: null,
+						restStartedAt: nowMs(),
 						alarmActive: true,
 						alarmKind: kind
 					});

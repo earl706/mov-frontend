@@ -57,6 +57,8 @@ function RoutinePicker() {
 	const start = useStartSession();
 	const routines = data?.results || [];
 	const suggestedId = suggested?.template?.id;
+	const restDay = suggested?.reason === 'rest';
+	const scheduled = suggested?.reason === 'scheduled';
 
 	if (isLoading) return <LoadingScreen />;
 
@@ -73,11 +75,28 @@ function RoutinePicker() {
 
 	return (
 		<div className="space-y-3">
+			{restDay && (
+				<Card>
+					<CardBody className="flex flex-col gap-2 sm:flex-row sm:items-center">
+						<div className="min-w-0 flex-1">
+							<Badge>Rest day</Badge>
+							<p className="text-fg mt-1.5 text-base font-semibold">Scheduled rest</p>
+							<p className="text-muted text-xs">
+								No routine is assigned today. You can still start one below.
+							</p>
+						</div>
+						<Button variant="ghost" size="sm" onClick={() => navigate('/routines')}>
+							Edit split
+						</Button>
+					</CardBody>
+				</Card>
+			)}
+
 			{suggested?.template && (
 				<Card className="border-primary/40">
 					<CardBody className="flex flex-col gap-3 sm:flex-row sm:items-center">
 						<div className="min-w-0 flex-1">
-							<Badge tone="primary">Up next</Badge>
+							<Badge tone="primary">{scheduled ? 'Today' : 'Up next'}</Badge>
 							<p className="text-fg mt-1.5 text-base font-semibold">{suggested.template.name}</p>
 							<p className="text-muted text-xs">
 								{suggested.template.exercise_count} exercises · {suggested.template.planned_sets}{' '}
@@ -313,10 +332,7 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 									<Button
 										onClick={timer.startSet}
 										disabled={working}
-										className={cn(
-											'h-10 w-full justify-center',
-											alarmActive && 'animate-pulse'
-										)}
+										className={cn('h-10 w-full justify-center', alarmActive && 'animate-pulse')}
 									>
 										<Play size={16} />
 										Start set

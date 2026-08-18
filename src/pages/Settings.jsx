@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dumbbell, LogOut, Scale, Settings as SettingsIcon, Shield } from 'lucide-react';
 
@@ -14,6 +15,7 @@ import { localDateKey } from '../lib/weightFormat';
 
 export default function SettingsPage() {
 	const qc = useQueryClient();
+	const navigate = useNavigate();
 	const user = useAuthStore((s) => s.user);
 	const logout = useAuthStore((s) => s.logout);
 	const updateUser = useAuthStore((s) => s.updateUser);
@@ -187,14 +189,21 @@ export default function SettingsPage() {
 							value={form.default_rest_exercise_seconds ?? 120}
 							onChange={setField('default_rest_exercise_seconds')}
 						/>
-						<Input
-							label="Workouts per week"
-							type="number"
-							min={1}
-							max={14}
-							value={form.weekly_workout_goal ?? 3}
-							onChange={setField('weekly_workout_goal')}
-						/>
+						<div className="space-y-1.5">
+							<p className="text-fg text-sm font-medium">Workouts per week</p>
+							<p className="text-fg text-sm">
+								{form.effective_weekly_workout_goal ?? form.weekly_workout_goal ?? 4}
+							</p>
+							<button
+								type="button"
+								onClick={() => navigate('/routines')}
+								className="text-primary cursor-pointer text-left text-xs hover:underline"
+							>
+								{form.weekly_goal_from_schedule
+									? 'From your weekly split on Routines'
+									: 'Assign weekdays on Routines to set this'}
+							</button>
+						</div>
 						<Select
 							label="Length unit"
 							value={form.length_unit || 'cm'}
@@ -215,6 +224,11 @@ export default function SettingsPage() {
 							Remind me if I have not trained
 						</label>
 						{form.workout_reminder_enabled && (
+							<p className="text-muted text-xs sm:col-span-2">
+								Skipped on rest days once a weekly split is set.
+							</p>
+						)}
+						{form.workout_reminder_enabled && (
 							<Input
 								label="Reminder time"
 								type="time"
@@ -231,7 +245,6 @@ export default function SettingsPage() {
 										default_rest_exercise_seconds: Number(
 											form.default_rest_exercise_seconds ?? 120
 										),
-										weekly_workout_goal: Number(form.weekly_workout_goal ?? 3),
 										length_unit: form.length_unit || 'cm',
 										workout_reminder_enabled: !!form.workout_reminder_enabled,
 										workout_reminder_time: form.workout_reminder_enabled

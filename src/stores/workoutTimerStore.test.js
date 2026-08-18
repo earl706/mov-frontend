@@ -371,6 +371,60 @@ describe('workoutTimerStore', () => {
 		expect(store().phase).toBe('work');
 	});
 
+	it('adds the wait after a between-set rest alarm to the next set', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().advanceSet();
+		store().beginSetRest();
+		tick(90);
+		store().onRestElapsed('rest_set');
+		tick(12);
+		store().startSet();
+		tick(5);
+		expect(store().buildSetPayload().rest_seconds).toBe(102);
+	});
+
+	it('adds the wait after a between-exercise rest alarm to the next set', () => {
+		const curl = {
+			id: 11,
+			exercise_name: 'Curl',
+			track_mode: 'reps',
+			per_side: false,
+			planned_sets: 3,
+			planned_reps: 10,
+			planned_hold_seconds: 0,
+			rest_set_seconds: 60,
+			rest_rep_seconds: 0,
+			rest_exercise_seconds: 90,
+			target_load_kg: '12.00'
+		};
+		store().loadSet({ ...BARBELL_ROW, planned_sets: 1, rest_exercise_seconds: 45 }, 1);
+		store().startSet();
+		tick(10);
+		doReps(8);
+
+		expect(store().advanceAfterLog({ nextExercise: curl, nextSetIndex: 1 })).toBe('rest_exercise');
+		tick(45);
+		store().onRestElapsed('rest_exercise');
+		tick(10);
+		store().startSet();
+		tick(8);
+		expect(store().buildSetPayload().rest_seconds).toBe(55);
+	});
+
+	it('does not add post-alarm wait to rest after a rep rest', () => {
+		store().loadSet({ ...BARBELL_ROW, rest_rep_seconds: 10, planned_reps: 2 }, 1);
+		store().startSet();
+		tick(4);
+		store().countRep();
+		tick(10);
+		store().onRestElapsed('rest_rep');
+		tick(7);
+		store().startSet();
+		tick(4);
+		store().countRep();
+		expect(store().buildSetPayload().rest_seconds).toBe(10);
+	});
+
 	it('goes idle after the last set of the last exercise', () => {
 		store().loadSet({ ...BARBELL_ROW, planned_sets: 1 }, 1);
 		store().startSet();

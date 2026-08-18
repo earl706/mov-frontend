@@ -15,6 +15,7 @@ import {
 	Modal,
 	Textarea
 } from '../components/ui';
+import { WeeklySchedule } from '../components/routines/WeeklySchedule';
 import { exercisesApi, routinesApi, useStartSession } from '../lib/resources';
 import { toast } from '../stores/toastStore';
 
@@ -91,7 +92,7 @@ export function RoutinesPage() {
 			<PageHeader
 				title="Routines"
 				icon={ListChecks}
-				description="Saved workout plans. Every session starts from one of these."
+				description="Saved workout plans and the days you train them. Every session starts from a routine."
 				actions={
 					<Button onClick={() => setOpen(true)}>
 						<Plus size={16} />
@@ -100,17 +101,23 @@ export function RoutinesPage() {
 				}
 			/>
 
+			{routines.length > 0 && (
+				<div className="mb-4">
+					<WeeklySchedule routines={routines} />
+				</div>
+			)}
+
 			{!routines.length ? (
 				<EmptyState
 					icon={ListChecks}
 					title="No routines yet"
-					description="Group the exercises you train together — for example Upper A, Lower A, or Full body."
+					description="Group the exercises you train together — for example Upper A, Lower A, or Full body. Then assign them to weekdays."
 					action={<Button onClick={() => setOpen(true)}>Create your first routine</Button>}
 				/>
 			) : (
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					{routines.map((routine) => (
-						<Card key={routine.id}>
+						<Card key={routine.id} className="pt-3">
 							<CardBody className="space-y-3">
 								<div className="flex items-start gap-2">
 									<div className="min-w-0 flex-1">

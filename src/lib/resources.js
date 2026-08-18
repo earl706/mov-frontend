@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { get, patch, post } from './api';
+import { get, patch, post, put } from './api';
 import { createResourceHooks } from '../hooks/useResource';
 import { useLocalCalendarDate } from '../hooks/useLocalCalendarDate';
 import { toast } from '../stores/toastStore';
@@ -52,9 +52,31 @@ export function useTrainingHeatmap(days = 84) {
 }
 
 export function useSuggestedRoutine() {
+	const localDate = useLocalCalendarDate();
 	return useQuery({
-		queryKey: ['routines', 'suggested'],
+		queryKey: ['routines', 'suggested', localDate],
 		queryFn: () => get('/routines/suggested/')
+	});
+}
+
+export function useWeeklySchedule() {
+	const localDate = useLocalCalendarDate();
+	return useQuery({
+		queryKey: ['routines', 'schedule', localDate],
+		queryFn: () => get('/routines/schedule/')
+	});
+}
+
+export function useUpdateWeeklySchedule() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (body) => put('/routines/schedule/', body),
+		onSuccess: () => {
+			invalidateWorkouts(qc);
+			qc.invalidateQueries({ queryKey: ['profile'] });
+			toast.success('Weekly split saved.');
+		},
+		onError: () => toast.error('Could not save the weekly split.')
 	});
 }
 
