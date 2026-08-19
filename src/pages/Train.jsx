@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Check, Dumbbell, Pause, Play, Square, Timer, Trash2 } from 'lucide-react';
+import {
+	AlertTriangle,
+	Check,
+	Coffee,
+	Dumbbell,
+	Pause,
+	Play,
+	Square,
+	Timer,
+	Trash2
+} from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
 import {
@@ -150,53 +160,69 @@ function RoutinePicker() {
 }
 
 // -----------------------------------------------------------------------------
-// Compact session progress (reps this set, sets this exercise, session sets)
+// Apple Watch–style nested activity rings (Sets outer, Session inner)
 // -----------------------------------------------------------------------------
 
-function SessionProgress({ sessionExercise, totals }) {
-	const timer = useWorkoutTimerStore();
-	const isHold = sessionExercise?.track_mode === 'hold';
-	const sameExercise = sessionExercise && timer.sessionExerciseId === sessionExercise.id;
-	const repsDone = sameExercise ? timer.repsDone : 0;
-	const repsGoal = sessionExercise ? (isHold ? 1 : sessionExercise.planned_reps || 1) : 0;
+function ActivityRings({ sessionExercise, totals, size = 64 }) {
 	const setsDone = sessionExercise ? loggedSets(sessionExercise) : 0;
 	const setsGoal = sessionExercise ? Math.max(1, sessionExercise.planned_sets) : 0;
+	const setsPct = setsGoal ? Math.min(100, (setsDone / setsGoal) * 100) : 0;
+	const sessionPct = totals.planned ? Math.min(100, (totals.done / totals.planned) * 100) : 0;
 
-	const rings = [
-		{
-			key: 'reps',
-			caption: isHold ? 'Hold' : 'Reps',
-			value: repsGoal ? (repsDone / repsGoal) * 100 : 0,
-			label: sessionExercise ? `${repsDone}/${repsGoal}` : '—'
-		},
-		{
-			key: 'sets',
-			caption: 'Sets',
-			value: setsGoal ? (setsDone / setsGoal) * 100 : 0,
-			label: sessionExercise ? `${setsDone}/${setsGoal}` : '—'
-		},
-		{
-			key: 'session',
-			caption: 'Session',
-			value: totals.planned ? (totals.done / totals.planned) * 100 : 0,
-			label: `${totals.done}/${totals.planned}`
-		}
-	];
+	const gap = 1.5;
+	const outerStroke = 4.5;
+	const innerStroke = 4.5;
+	const outerR = (size - outerStroke) / 2;
+	const innerR = outerR - outerStroke / 2 - gap - innerStroke / 2;
+	const outerC = 2 * Math.PI * outerR;
+	const innerC = 2 * Math.PI * innerR;
 
 	return (
-		<Card className="lg:col-span-2">
-			<CardHeader title="Progress" subtitle="This set, this exercise, this workout" />
-			<CardBody>
-				<div className="grid grid-cols-3 gap-2">
-					{rings.map((ring) => (
-						<div key={ring.key} className="flex flex-col items-center gap-1.5">
-							<ProgressRing value={ring.value} size={72} stroke={6} label={ring.label} />
-							<p className="text-muted text-xs">{ring.caption}</p>
-						</div>
-					))}
-				</div>
-			</CardBody>
-		</Card>
+		<svg
+			width={size}
+			height={size}
+			className="-rotate-90"
+			aria-label={`Sets ${setsDone}/${setsGoal}, Session ${totals.done}/${totals.planned}`}
+		>
+			<circle
+				cx={size / 2}
+				cy={size / 2}
+				r={outerR}
+				fill="none"
+				stroke="var(--surface-2)"
+				strokeWidth={outerStroke}
+			/>
+			<circle
+				cx={size / 2}
+				cy={size / 2}
+				r={outerR}
+				fill="none"
+				strokeWidth={outerStroke}
+				strokeLinecap="round"
+				strokeDasharray={outerC}
+				strokeDashoffset={outerC - (setsPct / 100) * outerC}
+				style={{ stroke: 'var(--success)', transition: 'stroke-dashoffset 0.5s linear' }}
+			/>
+			<circle
+				cx={size / 2}
+				cy={size / 2}
+				r={innerR}
+				fill="none"
+				stroke="var(--surface-2)"
+				strokeWidth={innerStroke}
+			/>
+			<circle
+				cx={size / 2}
+				cy={size / 2}
+				r={innerR}
+				fill="none"
+				strokeWidth={innerStroke}
+				strokeLinecap="round"
+				strokeDasharray={innerC}
+				strokeDashoffset={innerC - (sessionPct / 100) * innerC}
+				style={{ stroke: 'var(--primary)', transition: 'stroke-dashoffset 0.5s linear' }}
+			/>
+		</svg>
 	);
 }
 
@@ -204,7 +230,7 @@ function SessionProgress({ sessionExercise, totals }) {
 // The set timer
 // -----------------------------------------------------------------------------
 
-function SetTimer({ sessionExercise, onSetLogged }) {
+function SetTimer({ sessionExercise, totals, onSetLogged }) {
 	const { finishSet, logging } = useWorkoutAutoAdvance();
 	const timer = useWorkoutTimerStore();
 	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
@@ -239,21 +265,15 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 		onSetLogged?.();
 	};
 
-	const phaseLabel = alarmActive
-		? timer.phase === 'rest_rep'
-			? 'Rep rest over'
-			: 'Rest over'
-		: timer.phase === 'rest_exercise'
-			? 'Rest'
-			: timer.phase === 'rest_set'
-				? 'Rest'
-				: timer.phase === 'rest_rep'
-					? 'Rest between reps'
-					: timer.phase === 'work'
-						? isHold
-							? 'Hold'
-							: 'Working set'
-						: 'Ready';
+	const PhaseIcon = alarmActive ? AlertTriangle : resting ? Coffee : working ? Timer : Play;
+
+	const badgeTone = alarmActive
+		? 'danger'
+		: resting
+			? 'success'
+			: timer.running
+				? 'primary'
+				: 'neutral';
 
 	return (
 		<Card>
@@ -265,13 +285,9 @@ function SetTimer({ sessionExercise, onSetLogged }) {
 						: `Set ${timer.setIndex} of ${sessionExercise.planned_sets} · ${describePrescription(sessionExercise)}`
 				}
 				action={
-					<Badge
-						tone={
-							alarmActive ? 'danger' : resting ? 'success' : timer.running ? 'primary' : 'neutral'
-						}
-					>
-						{phaseLabel}
-					</Badge>
+					<div className="flex items-center gap-2">
+						<ActivityRings sessionExercise={sessionExercise} totals={totals} size={72} />
+					</div>
 				}
 			/>
 			<CardBody className="space-y-4">
@@ -524,21 +540,17 @@ export default function TrainPage() {
 				}
 			/>
 
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-				<div className="lg:col-span-3">
-					{current ? (
-						<SetTimer sessionExercise={current} onSetLogged={refetch} />
-					) : (
-						<EmptyState
-							icon={Check}
-							title="Every set is logged"
-							description="Finish the workout to save it and update your streak."
-							action={<Button onClick={() => setFinishOpen(true)}>Finish workout</Button>}
-						/>
-					)}
-				</div>
-
-				<SessionProgress sessionExercise={current} totals={totals} />
+			<div className="space-y-4">
+				{current ? (
+					<SetTimer sessionExercise={current} totals={totals} onSetLogged={refetch} />
+				) : (
+					<EmptyState
+						icon={Check}
+						title="Every set is logged"
+						description="Finish the workout to save it and update your streak."
+						action={<Button onClick={() => setFinishOpen(true)}>Finish workout</Button>}
+					/>
+				)}
 			</div>
 
 			<Modal

@@ -1,12 +1,24 @@
 import { create } from 'zustand';
 
 import { api, tokenStore } from '../lib/api';
+import { effectiveRememberMe } from '../lib/desktop';
+
+function isTransientAuthError(err) {
+	if (!err?.response) return true;
+	const status = err.response.status;
+	return status >= 500 || status === 429;
+}
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 function applySession(set, data) {
 	if (data.mfa_required) {
-		return { mfaRequired: true, mfaToken: data.mfa_token, status: 'mfa_pending', error: null };
+		return {
+			mfaRequired: true,
+			mfaToken: data.mfa_token,
+			status: 'mfa_pending',
+			error: null
+		};
 	}
 	tokenStore.set({ access: data.access, refresh: data.refresh });
 	return {
@@ -14,33 +26,43 @@ function applySession(set, data) {
 		status: 'authenticated',
 		mfaRequired: false,
 		mfaToken: null,
+		pendingRemember: true,
 		error: null,
 		pendingVerificationEmail: null
 	};
 }
 
-/**
- * Global authentication state.
- *
- * Tokens live in localStorage (via tokenStore) so they survive reloads; this
- * store mirrors the current user object and exposes login/register/logout.
- */
 export const useAuthStore = create((set, get) => ({
 	user: null,
-	status: 'idle', // idle | loading | authenticated | unauthenticated | mfa_pending
+	status: 'idle',
 	error: null,
 	mfaRequired: false,
 	mfaToken: null,
+	pendingRemember: true,
 	pendingVerificationEmail: null,
 
 	isAuthenticated: () => Boolean(get().user),
 
-	async login(email, password) {
-		set({ status: 'loading', error: null });
+	async login(email, password, { remember = true } = {}) {
+		const rememberMe = effectiveRememberMe(remember);
+		set({ status: 'loading', error: null, pendingRemember: rememberMe });
 		try {
-			const { data } = await api.post('/auth/login/', { email, password });
+			const { data } = await api.post('/auth/login/', {
+				email,
+				password,
+				remember: rememberMe
+			});
+			if (data.mfa_required) {
+				set({
+					mfaRequired: true,
+					mfaToken: data.mfa_token,
+					status: 'mfa_pending',
+					error: null,
+					pendingRemember: rememberMe
+				});
+				return null;
+			}
 			set(applySession(set, data));
-			if (data.mfa_required) return null;
 			return data.user;
 		} catch (err) {
 			const data = err.response?.data;
@@ -61,13 +83,17 @@ export const useAuthStore = create((set, get) => ({
 		}
 	},
 
-	async verifyMfa({ code, recoveryCode }) {
+	async verifyMfa({ code, recoveryCode, remember } = {}) {
 		set({ status: 'loading', error: null });
+		const rememberMe = effectiveRememberMe(
+			remember !== undefined ? remember : get().pendingRemember
+		);
 		try {
 			const { data } = await api.post('/auth/mfa/verify/', {
 				mfa_token: get().mfaToken,
 				code: code || undefined,
-				recovery_code: recoveryCode || undefined
+				recovery_code: recoveryCode || undefined,
+				remember: rememberMe
 			});
 			set(applySession(set, data));
 			return data.user;
@@ -125,7 +151,8 @@ export const useAuthStore = create((set, get) => ({
 					mfaRequired: true,
 					mfaToken: data.mfa_token,
 					status: 'mfa_pending',
-					error: null
+					error: null,
+					pendingRemember: true
 				});
 				return null;
 			}
@@ -138,19 +165,32 @@ export const useAuthStore = create((set, get) => ({
 		}
 	},
 
-	/** Rehydrate the session on app boot if we have a stored token. */
 	async bootstrap() {
-		if (!tokenStore.access) {
+		if (!tokenStore.access && !tokenStore.refresh) {
 			set({ status: 'unauthenticated' });
 			return;
 		}
 		set({ status: 'loading' });
-		try {
-			const { data } = await api.get('/auth/me/');
-			set({ user: data, status: 'authenticated' });
-		} catch {
-			tokenStore.clear();
-			set({ user: null, status: 'unauthenticated' });
+		const attempts = 8;
+		for (let i = 0; i < attempts; i += 1) {
+			try {
+				const { data } = await api.get('/auth/me/');
+				set({ user: data, status: 'authenticated', error: null });
+				return;
+			} catch (err) {
+				const status = err.response?.status;
+				if (status === 401 || status === 403) {
+					tokenStore.clear();
+					set({ user: null, status: 'unauthenticated' });
+					return;
+				}
+				if (i < attempts - 1 && isTransientAuthError(err)) {
+					await new Promise((resolve) => setTimeout(resolve, 400));
+					continue;
+				}
+				set({ user: null, status: 'unauthenticated' });
+				return;
+			}
 		}
 	},
 
@@ -159,7 +199,13 @@ export const useAuthStore = create((set, get) => ({
 	},
 
 	clearMfa() {
-		set({ mfaRequired: false, mfaToken: null, status: 'unauthenticated', error: null });
+		set({
+			mfaRequired: false,
+			mfaToken: null,
+			pendingRemember: true,
+			status: 'unauthenticated',
+			error: null
+		});
 	},
 
 	logout() {
@@ -169,6 +215,7 @@ export const useAuthStore = create((set, get) => ({
 			status: 'unauthenticated',
 			mfaRequired: false,
 			mfaToken: null,
+			pendingRemember: true,
 			pendingVerificationEmail: null
 		});
 	}

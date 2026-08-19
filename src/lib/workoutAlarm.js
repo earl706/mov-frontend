@@ -6,10 +6,10 @@ let outputGain = null;
 
 /** An unattended alarm stops itself so a phone left on the bench goes quiet. */
 export const WORKOUT_ALARM_MAX_MS = 60000;
-export const DEFAULT_WORKOUT_ALARM_SOUND = 'chime';
+export const DEFAULT_WORKOUT_ALARM_SOUND = 'bell';
 
 export const WORKOUT_ALARM_SOUNDS = [
-	{ id: 'chime', label: 'Chime', description: 'Classic four-note chime' },
+	{ id: 'chime', label: 'Chime', description: 'Bright two-tone alert (Google-style)' },
 	{ id: 'bell', label: 'Bell', description: 'Warm bell tones' },
 	{ id: 'digital', label: 'Digital', description: 'Sharp electronic beeps' },
 	{ id: 'soft', label: 'Soft', description: 'Gentle rising notes' },
@@ -17,7 +17,7 @@ export const WORKOUT_ALARM_SOUNDS = [
 ];
 
 const ALARM_REPEAT_MS = {
-	chime: 1600,
+	chime: 1500,
 	bell: 1800,
 	digital: 1200,
 	soft: 2000,
@@ -80,14 +80,23 @@ function tone(ctx, when, freq, { duration = 0.5, type = 'sine', volume = 0.85 } 
 
 const ALARM_PATTERNS = {
 	chime: (ctx, t) => {
-		[880, 880, 1100, 880].forEach((freq, i) =>
-			tone(ctx, t + i * 0.38, freq, { duration: 0.5, volume: 0.95 })
-		);
-		tone(ctx, t, 440, { duration: 0.7, type: 'triangle', volume: 0.55 });
+		// Google-style two-burst ascending alert: E6–G#6 pairs with a bright metallic timbre
+		const pairs = [
+			[1319, 1568],
+			[1319, 1568]
+		];
+		pairs.forEach(([lo, hi], burst) => {
+			const offset = burst * 0.5;
+			tone(ctx, t + offset, lo, { duration: 0.12, type: 'sine', volume: 0.9 });
+			tone(ctx, t + offset + 0.15, hi, { duration: 0.12, type: 'sine', volume: 0.9 });
+			// Metallic overtone layer
+			playOsc(ctx, t + offset, lo * 2, { duration: 0.08, type: 'triangle', volume: 0.2 });
+			playOsc(ctx, t + offset + 0.15, hi * 2, { duration: 0.08, type: 'triangle', volume: 0.2 });
+		});
 	},
 	bell: (ctx, t) => {
 		[523, 659, 784].forEach((freq, i) =>
-			tone(ctx, t + i * 0.45, freq, { type: 'triangle', duration: 0.75, volume: 0.8 })
+			tone(ctx, t + i * 0.45, freq, { type: 'triangle', duration: 0.75, volume: 1.0 })
 		);
 	},
 	digital: (ctx, t) => {

@@ -3,7 +3,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
-import { Button, Input } from '../components/ui';
+import { defaultRememberMe } from '../lib/desktop';
+import { Button, Input, LoadingScreen } from '../components/ui';
+import PinInput from '../components/auth/PinInput';
+
+function RememberMeCheckbox({ checked, onChange }) {
+	return (
+		<label className="text-muted flex cursor-pointer items-center gap-2 text-sm">
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(e) => onChange(e.target.checked)}
+				className="accent-primary h-4 w-4"
+			/>
+			Remember me for 90 days
+		</label>
+	);
+}
 
 export function AuthShell({ children }) {
 	return (
@@ -64,23 +80,43 @@ function MfaForm() {
 	const verifyMfa = useAuthStore((s) => s.verifyMfa);
 	const clearMfa = useAuthStore((s) => s.clearMfa);
 	const error = useAuthStore((s) => s.error);
+	const pendingRemember = useAuthStore((s) => s.pendingRemember);
 	const [code, setCode] = useState('');
 	const [recoveryCode, setRecoveryCode] = useState('');
 	const [useRecovery, setUseRecovery] = useState(false);
 	const [loading, setLoading] = useState(false);
+	const [remember, setRemember] = useState(
+		pendingRemember !== undefined ? !!pendingRemember : defaultRememberMe()
+	);
 
-	const submit = async (e) => {
-		e.preventDefault();
+	const runVerify = async ({ totp, recovery } = {}) => {
+		if (loading) return;
 		setLoading(true);
 		try {
 			await verifyMfa({
-				code: useRecovery ? undefined : code,
-				recoveryCode: useRecovery ? recoveryCode : undefined
+				code: recovery ? undefined : totp,
+				recoveryCode: recovery || undefined,
+				remember
 			});
 			navigate('/', { replace: true });
+		} catch {
+			setCode('');
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	const submit = async (e) => {
+		e.preventDefault();
+		if (useRecovery) {
+			await runVerify({ recovery: recoveryCode });
+		} else if (code.length === 6) {
+			await runVerify({ totp: code });
+		}
+	};
+
+	const handlePinComplete = (nextCode) => {
+		runVerify({ totp: nextCode });
 	};
 
 	return (
@@ -97,24 +133,32 @@ function MfaForm() {
 						required
 					/>
 				) : (
-					<Input
-						label="Authentication code"
-						value={code}
-						onChange={(e) => setCode(e.target.value)}
-						placeholder="123456"
-						inputMode="numeric"
-						autoComplete="one-time-code"
-						required
-					/>
+					<div className="space-y-2">
+						<p className="text-fg text-sm font-medium">Authentication code</p>
+						<PinInput
+							value={code}
+							onChange={setCode}
+							onComplete={handlePinComplete}
+							disabled={loading}
+							error={Boolean(error)}
+						/>
+					</div>
 				)}
+				<RememberMeCheckbox checked={remember} onChange={setRemember} />
 				{error && <p className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm">{error}</p>}
-				<Button type="submit" className="w-full" loading={loading}>
-					Verify
-				</Button>
+				{useRecovery && (
+					<Button type="submit" className="w-full" loading={loading}>
+						Verify
+					</Button>
+				)}
+				{!useRecovery && loading && <p className="text-muted text-center text-xs">Verifying…</p>}
 				<button
 					type="button"
 					className="text-primary w-full cursor-pointer text-sm"
-					onClick={() => setUseRecovery((v) => !v)}
+					onClick={() => {
+						setUseRecovery((v) => !v);
+						setCode('');
+					}}
 				>
 					{useRecovery ? 'Use authenticator code' : 'Use a recovery code'}
 				</button>
@@ -138,17 +182,27 @@ export function LoginPage() {
 	const login = useAuthStore((s) => s.login);
 	const error = useAuthStore((s) => s.error);
 	const mfaRequired = useAuthStore((s) => s.mfaRequired);
+	const status = useAuthStore((s) => s.status);
+	const user = useAuthStore((s) => s.user);
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
+	const [remember, setRemember] = useState(defaultRememberMe());
 	const [loading, setLoading] = useState(false);
 
 	if (mfaRequired) return <MfaForm />;
+	if (status === 'idle' || status === 'loading') {
+		return <LoadingScreen label="Restoring your session…" />;
+	}
+	if (status === 'authenticated' && user) {
+		navigate('/', { replace: true });
+		return null;
+	}
 
 	const submit = async (e) => {
 		e.preventDefault();
 		setLoading(true);
 		try {
-			await login(email, password);
+			await login(email, password, { remember });
 			const user = useAuthStore.getState().user;
 			if (user) navigate('/', { replace: true });
 		} catch (err) {
@@ -163,13 +217,14 @@ export function LoginPage() {
 	return (
 		<AuthShell>
 			<h2 className="text-fg text-2xl font-bold">Welcome back</h2>
-			<form onSubmit={submit} className="mt-6 space-y-4">
+			<form onSubmit={submit} className="mt-6 space-y-4" autoComplete="off">
 				<Input
 					label="Email"
 					type="email"
 					value={email}
 					onChange={(e) => setEmail(e.target.value)}
 					placeholder="Email"
+					autoComplete="username"
 					required
 				/>
 				<Input
@@ -178,8 +233,10 @@ export function LoginPage() {
 					value={password}
 					onChange={(e) => setPassword(e.target.value)}
 					placeholder="Password"
+					autoComplete="off"
 					required
 				/>
+				<RememberMeCheckbox checked={remember} onChange={setRemember} />
 				{error && <p className="bg-danger/10 text-danger rounded-md px-3 py-2 text-sm">{error}</p>}
 				<Button type="submit" className="w-full" loading={loading}>
 					Sign in

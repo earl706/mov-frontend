@@ -1,75 +1,154 @@
-import axios from 'axios'
+import axios from 'axios';
 
-// Token persistence keys. Kept in localStorage so a refresh survives reloads.
-const ACCESS_KEY = 'mov.access'
-const REFRESH_KEY = 'mov.refresh'
+const ACCESS_KEY = 'mov.access';
+const REFRESH_KEY = 'mov.refresh';
+const COOKIE_MAX_AGE = 90 * 24 * 60 * 60;
 
-export const tokenStore = {
-  get access() {
-    return localStorage.getItem(ACCESS_KEY)
-  },
-  get refresh() {
-    return localStorage.getItem(REFRESH_KEY)
-  },
-  set({ access, refresh }) {
-    if (access) localStorage.setItem(ACCESS_KEY, access)
-    if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
-  },
-  clear() {
-    localStorage.removeItem(ACCESS_KEY)
-    localStorage.removeItem(REFRESH_KEY)
-  },
+function cookieGet(name) {
+	if (typeof document === 'undefined') return null;
+	const prefix = `${name}=`;
+	const found = document.cookie.split('; ').find((row) => row.startsWith(prefix));
+	if (!found) return null;
+	try {
+		return decodeURIComponent(found.slice(prefix.length));
+	} catch {
+		return found.slice(prefix.length);
+	}
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+function cookieSet(name, value) {
+	if (typeof document === 'undefined') return;
+	document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
 
-export const api = axios.create({ baseURL })
+function cookieClear(name) {
+	if (typeof document === 'undefined') return;
+	document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+}
 
-// Attach the bearer token to every request.
+function readToken(key) {
+	try {
+		const fromStorage = localStorage.getItem(key);
+		if (fromStorage) return fromStorage;
+	} catch {
+		/* private mode / blocked storage */
+	}
+	const fromCookie = cookieGet(key);
+	if (fromCookie) {
+		try {
+			localStorage.setItem(key, fromCookie);
+		} catch {
+			/* ignore */
+		}
+	}
+	return fromCookie;
+}
+
+function writeToken(key, value) {
+	try {
+		localStorage.setItem(key, value);
+	} catch {
+		/* ignore */
+	}
+	cookieSet(key, value);
+}
+
+function removeToken(key) {
+	try {
+		localStorage.removeItem(key);
+	} catch {
+		/* ignore */
+	}
+	cookieClear(key);
+}
+
+export const tokenStore = {
+	get access() {
+		return readToken(ACCESS_KEY);
+	},
+	get refresh() {
+		return readToken(REFRESH_KEY);
+	},
+	set({ access, refresh }) {
+		if (access) writeToken(ACCESS_KEY, access);
+		if (refresh) writeToken(REFRESH_KEY, refresh);
+	},
+	clear() {
+		removeToken(ACCESS_KEY);
+		removeToken(REFRESH_KEY);
+	}
+};
+
+const baseURL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export const api = axios.create({ baseURL });
+
 api.interceptors.request.use((config) => {
-  const token = tokenStore.access
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+	const token = tokenStore.access;
+	if (token) config.headers.Authorization = `Bearer ${token}`;
+	return config;
+});
 
-// Transparent refresh: on a 401, try once to mint a new access token using the
-// refresh token, then replay the original request. A shared promise prevents a
-// stampede of refresh calls when several requests fail at once.
-let refreshPromise = null
+const ANON_AUTH_PATHS = [
+	'/auth/login/',
+	'/auth/register/',
+	'/auth/refresh/',
+	'/auth/mfa/verify/',
+	'/auth/oauth/',
+	'/auth/email/verify/',
+	'/auth/email/resend/'
+];
+
+function isAnonymousAuthRequest(url = '') {
+	return ANON_AUTH_PATHS.some((path) => String(url).includes(path));
+}
+
+let refreshPromise = null;
+
+export async function refreshAccessToken() {
+	const refresh = tokenStore.refresh;
+	if (!refresh) throw new Error('No refresh token');
+	const { data } = await axios.post(`${baseURL}/auth/refresh/`, { refresh });
+	tokenStore.set({
+		access: data.access,
+		...(data.refresh ? { refresh: data.refresh } : {})
+	});
+	return data.access;
+}
 
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config
-    const status = error.response?.status
-    const isAuthCall = original?.url?.includes('/auth/')
+	(response) => response,
+	async (error) => {
+		const original = error.config;
+		const status = error.response?.status;
 
-    if (status === 401 && !original._retry && !isAuthCall && tokenStore.refresh) {
-      original._retry = true
-      try {
-        refreshPromise =
-          refreshPromise ||
-          axios.post(`${baseURL}/auth/refresh/`, { refresh: tokenStore.refresh })
-        const { data } = await refreshPromise
-        refreshPromise = null
-        tokenStore.set({ access: data.access })
-        original.headers.Authorization = `Bearer ${data.access}`
-        return api(original)
-      } catch (refreshError) {
-        refreshPromise = null
-        tokenStore.clear()
-        // Hard redirect to login; the auth store will pick up the empty token.
-        if (typeof window !== 'undefined') window.location.assign('/login')
-        return Promise.reject(refreshError)
-      }
-    }
-    return Promise.reject(error)
-  }
-)
+		if (
+			status === 401 &&
+			original &&
+			!original._retry &&
+			!isAnonymousAuthRequest(original.url) &&
+			tokenStore.refresh
+		) {
+			original._retry = true;
+			try {
+				refreshPromise = refreshPromise || refreshAccessToken();
+				const access = await refreshPromise;
+				refreshPromise = null;
+				original.headers.Authorization = `Bearer ${access}`;
+				return api(original);
+			} catch (refreshError) {
+				refreshPromise = null;
+				tokenStore.clear();
+				if (typeof window !== 'undefined') window.location.assign('/login');
+				return Promise.reject(refreshError);
+			}
+		}
+		return Promise.reject(error);
+	}
+);
 
-// Small helper so feature hooks stay terse: get('/tasks/') -> data.
-export const get = (url, config) => api.get(url, config).then((r) => r.data)
-export const post = (url, body, config) => api.post(url, body, config).then((r) => r.data)
-export const patch = (url, body, config) => api.patch(url, body, config).then((r) => r.data)
-export const put = (url, body, config) => api.put(url, body, config).then((r) => r.data)
-export const del = (url, config) => api.delete(url, config).then((r) => r.data)
+export const get = (url, config) => api.get(url, config).then((r) => r.data);
+export const post = (url, body, config) => api.post(url, body, config).then((r) => r.data);
+export const patch = (url, body, config) => api.patch(url, body, config).then((r) => r.data);
+export const put = (url, body, config) => api.put(url, body, config).then((r) => r.data);
+export const del = (url, config) => api.delete(url, config).then((r) => r.data);

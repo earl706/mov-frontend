@@ -208,6 +208,7 @@ export default function HistoryPage() {
 	const { data, isLoading } = sessionsApi.useList({ page_size: 40, ordering: '-date' });
 	const remove = sessionsApi.useRemove();
 	const [detail, setDetail] = useState(null);
+	const [deleteTarget, setDeleteTarget] = useState(null);
 
 	const sessions = data?.results || [];
 	const chartData = useMemo(
@@ -325,17 +326,12 @@ export default function HistoryPage() {
 								<p className="text-fg text-sm font-medium">{sessionRowTitle(session)}</p>
 								<p className="text-muted text-xs">{sessionRowSubtitle(session)}</p>
 							</button>
-							<SessionSetChart
-								session={session}
-								compact
-								onClick={() => setDetail(session)}
-							/>
+							<SessionSetChart session={session} compact onClick={() => setDetail(session)} />
 							<Badge tone={STATUS_TONE[session.status]}>{session.status}</Badge>
 							<button
 								type="button"
 								onClick={() => {
-									if (confirm('Delete this workout? Its sets are removed too.'))
-										remove.mutate(session.id);
+									setDeleteTarget(session);
 								}}
 								className="text-muted hover:text-danger cursor-pointer p-1"
 								aria-label="Delete workout"
@@ -348,6 +344,38 @@ export default function HistoryPage() {
 			</Card>
 
 			<SessionDetail session={detail} onClose={() => setDetail(null)} />
+
+			<Modal
+				open={deleteTarget != null}
+				onClose={() => setDeleteTarget(null)}
+				title="Delete workout"
+				size="sm"
+				footer={
+					<>
+						<Button
+							variant="ghost"
+							onClick={() => setDeleteTarget(null)}
+							disabled={remove.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="danger"
+							onClick={() => {
+								if (!deleteTarget) return;
+								remove.mutate(deleteTarget.id, {
+									onSuccess: () => setDeleteTarget(null)
+								});
+							}}
+							loading={remove.isPending}
+						>
+							Delete
+						</Button>
+					</>
+				}
+			>
+				<p className="text-muted text-sm">Delete this workout? Its sets are removed too.</p>
+			</Modal>
 		</div>
 	);
 }

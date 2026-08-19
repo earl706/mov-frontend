@@ -373,6 +373,7 @@ export const useWorkoutTimerStore = create(
 					workStartedAt: null,
 					workAccumulated: 0,
 					restAccumulated: 0,
+					carriedRestSeconds: 0,
 					repsDone: 0,
 					restStartedAt: nowMs(),
 					restEndAt: nowMs() + s.restExerciseSeconds * 1000,
