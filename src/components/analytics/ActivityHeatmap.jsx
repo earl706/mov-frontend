@@ -3,10 +3,10 @@ import { eachDayOfInterval, endOfWeek, format, parseISO, startOfWeek } from 'dat
 import { formatDate } from '../../lib/format';
 
 const LEVEL_BG = [
-	'var(--surface-2)',
-	'color-mix(in srgb, var(--primary) 22%, var(--surface-2))',
-	'color-mix(in srgb, var(--primary) 45%, var(--surface-2))',
-	'color-mix(in srgb, var(--primary) 68%, var(--surface-2))',
+	'color-mix(in srgb, var(--fg) 6%, var(--surface))',
+	'color-mix(in srgb, var(--primary) 28%, var(--surface))',
+	'color-mix(in srgb, var(--primary) 48%, var(--surface))',
+	'color-mix(in srgb, var(--primary) 72%, var(--surface))',
 	'var(--primary)'
 ];
 
@@ -51,88 +51,130 @@ function buildCompactWeeks(timeline, weekCount = 7) {
 	return recent;
 }
 
-function tileCellRadius(row, col, size = 7) {
-	const last = size - 1;
-	const parts = ['rounded-sm'];
-	if (row === 0 && col === 0) parts.push('rounded-tl-sm');
-	if (row === 0 && col === last) parts.push('rounded-tr-sm');
-	if (row === last && col === 0) parts.push('rounded-bl-sm');
-	if (row === last && col === last) parts.push('rounded-br-sm');
-	return parts.join(' ');
+function monthLabels(weeks) {
+	const labels = [];
+	let lastMonth = '';
+	weeks.forEach((week, col) => {
+		const day = week.find((d) => d.date && !d.outOfRange) || week.find((d) => d.date);
+		if (!day?.date) return;
+		const month = formatDate(day.date, 'MMM');
+		if (month !== lastMonth) {
+			labels.push({ col, month });
+			lastMonth = month;
+		}
+	});
+	return labels;
 }
 
-function HeatmapTooltip({ day }) {
-	if (!day || day.outOfRange) return null;
-	const trained = day.trained || day.intensity > 0 || day.logged;
-
-	return (
-		<div className="border-line bg-surface pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-lg border px-2.5 py-1.5 text-xs whitespace-nowrap shadow-lg">
-			<p className="text-fg font-medium">{formatDate(day.date, 'EEE, MMM d, yyyy')}</p>
-			{trained ? (
-				<>
-					{day.intensity > 0 && (
-						<p className="text-muted">
-							{day.intensity} set{day.intensity === 1 ? '' : 's'}
-						</p>
-					)}
-					{day.volume_kg > 0 && <p className="text-muted">{Math.round(day.volume_kg)} kg volume</p>}
-					{day.calories > 0 && <p className="text-muted">{Math.round(day.calories)} kcal</p>}
-					{day.logged && !day.intensity && <p className="text-muted">Logged</p>}
-				</>
-			) : (
-				<p className="text-muted">Rest day</p>
-			)}
-		</div>
-	);
+function daySummary(day, emptyLabel) {
+	if (!day?.date || day.outOfRange) return null;
+	const active = day.trained || day.intensity > 0 || day.logged;
+	const when = formatDate(day.date, 'EEE, MMM d');
+	if (!active) return `${when} · ${emptyLabel}`;
+	if (day.logged && !(day.intensity > 0)) return `${when} · Weigh-in logged`;
+	const bits = [`${when}`];
+	if (day.intensity > 0) bits.push(`${day.intensity} set${day.intensity === 1 ? '' : 's'}`);
+	if (day.volume_kg > 0) bits.push(`${Math.round(day.volume_kg)} kg`);
+	return bits.join(' · ');
 }
 
-export function CompactActivityTile({ timeline = [], weeks = 7, className = '' }) {
-	const [hovered, setHovered] = useState(null);
+/**
+ * Compact contribution-style activity grid.
+ * Weeks flex to the card width so the tile does not need horizontal scroll.
+ */
+export function CompactActivityTile({
+	timeline = [],
+	weeks = 7,
+	className = '',
+	emptyLabel = 'No activity'
+}) {
+	const [focus, setFocus] = useState(null);
 	const gridWeeks = useMemo(() => buildCompactWeeks(timeline, weeks), [timeline, weeks]);
-	const maxIntensity = useMemo(() => Math.max(1, ...timeline.map((d) => d.intensity)), [timeline]);
+	const maxIntensity = useMemo(
+		() => Math.max(1, ...timeline.map((d) => d.intensity || 0)),
+		[timeline]
+	);
+	const labels = useMemo(() => monthLabels(gridWeeks), [gridWeeks]);
+	const activeCount = useMemo(
+		() => timeline.filter((d) => d.intensity > 0 || d.logged || d.trained).length,
+		[timeline]
+	);
 
 	if (!timeline.length) {
 		return (
-			<div className={`text-muted flex items-center justify-center text-[10px] ${className}`}>
+			<div className={`text-muted flex items-center justify-center text-xs ${className}`}>
 				No activity yet
 			</div>
 		);
 	}
 
+	const focusDay = focus ? gridWeeks.flat().find((d) => d.date === focus) : null;
+	const status =
+		daySummary(focusDay, emptyLabel) ||
+		`${activeCount} active day${activeCount === 1 ? '' : 's'} · last ${weeks} weeks`;
+
 	return (
 		<div
-			className={`inline-flex ${className}`}
-			aria-label={`Activity over the last ${weeks} weeks`}
+			className={`flex h-full min-h-0 w-full flex-col items-stretch justify-center gap-2 ${className}`}
 		>
-			<div className="flex gap-[3px]">
-				{gridWeeks.map((week, col) => (
-					<div key={col} className="flex flex-col gap-[3px]">
-						{week.map((day, row) => {
-							const lvl = day.outOfRange ? 0 : intensityLevel(day.intensity, maxIntensity);
-							const isHovered = hovered === day.date;
+			<div className="flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5" aria-label={`Activity over the last ${weeks} weeks`}>
+				<div className="flex min-h-0 w-full flex-1 items-stretch gap-[3px]">
+					{gridWeeks.map((week, col) => (
+						<div key={col} className="flex min-h-0 min-w-0 flex-1 flex-col gap-[3px]">
+							{week.map((day, row) => {
+								const lvl = day.outOfRange ? 0 : intensityLevel(day.intensity, maxIntensity);
+								const active = !day.outOfRange && day.date;
+								const isFocus = focus === day.date;
 
-							return (
-								<div
-									key={`${col}-${row}`}
-									className="relative"
-									onMouseEnter={() => day.date && setHovered(day.date)}
-									onMouseLeave={() => setHovered(null)}
-								>
-									{isHovered && <HeatmapTooltip day={day} />}
-									<div
-										className={`h-[11px] w-[11px] transition-colors ${tileCellRadius(row, col, weeks)} ${day.outOfRange ? 'opacity-0' : ''}`}
-										style={{ background: LEVEL_BG[lvl] }}
+								return (
+									<button
+										key={`${col}-${row}`}
+										type="button"
+										disabled={!active}
+										className={`min-h-0 w-full flex-1 rounded-[3px] transition-[transform,box-shadow,background-color] duration-150 ${
+											active
+												? 'hover:ring-primary/50 focus-visible:ring-primary cursor-pointer hover:ring-1 focus-visible:ring-1 focus-visible:outline-none'
+												: 'pointer-events-none opacity-25'
+										} ${isFocus ? 'ring-primary ring-1' : ''}`}
+										style={{ background: day.outOfRange ? 'transparent' : LEVEL_BG[lvl] }}
 										aria-label={
 											day.date
 												? `${formatDate(day.date, 'MMM d')}: ${day.intensity || 0} activity`
 												: undefined
 										}
+										onMouseEnter={() => active && setFocus(day.date)}
+										onMouseLeave={() => setFocus(null)}
+										onFocus={() => active && setFocus(day.date)}
+										onBlur={() => setFocus(null)}
 									/>
-								</div>
-							);
-						})}
+								);
+							})}
+						</div>
+					))}
+				</div>
+				<div className="relative h-3 w-full shrink-0 text-[9px] leading-none">
+					{labels.map(({ col, month }) => (
+						<span
+							key={`${month}-${col}`}
+							className="text-muted absolute top-0"
+							style={{ left: `${(col / weeks) * 100}%` }}
+						>
+							{month}
+						</span>
+					))}
+				</div>
+			</div>
+			<div className="flex w-full shrink-0 items-center justify-between gap-2">
+				<p className="text-muted min-w-0 flex-1 truncate text-[10px] leading-tight">{status}</p>
+				<div className="text-muted flex shrink-0 items-center gap-1 text-[9px]">
+					<span className="hidden sm:inline">Less</span>
+					<div className="flex gap-[2px]">
+						{LEVEL_BG.map((bg, i) => (
+							<span key={i} className="h-2 w-2 rounded-[2px]" style={{ background: bg }} />
+						))}
 					</div>
-				))}
+					<span className="hidden sm:inline">More</span>
+				</div>
 			</div>
 		</div>
 	);
