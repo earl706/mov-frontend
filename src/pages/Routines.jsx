@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ChevronRight, ListChecks, Play, Plus, Trash2 } from 'lucide-react';
+import {
+	ArrowDown,
+	ArrowUp,
+	ChevronRight,
+	Feather,
+	ListChecks,
+	Play,
+	Plus,
+	Trash2
+} from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
 import {
@@ -146,7 +155,7 @@ export function RoutinesPage() {
 									</span>
 								</div>
 
-								<div className="flex items-center gap-2">
+								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										size="sm"
 										disabled={!routine.exercise_count}
@@ -158,9 +167,27 @@ export function RoutinesPage() {
 												}
 											)
 										}
+										loading={start.isPending}
 									>
 										<Play size={15} />
 										Start
+									</Button>
+									<Button
+										size="sm"
+										variant="secondary"
+										disabled={!routine.exercise_count}
+										onClick={() =>
+											start.mutate(
+												{ template: routine.id, mild: true },
+												{
+													onSuccess: () => navigate('/train')
+												}
+											)
+										}
+										loading={start.isPending}
+									>
+										<Feather size={15} />
+										Start Mild
 									</Button>
 									<Button
 										size="sm"
@@ -318,9 +345,24 @@ function RoutineEditor({ routine }) {
 							onClick={() =>
 								start.mutate({ template: routine.id }, { onSuccess: () => navigate('/train') })
 							}
+							loading={start.isPending}
 						>
 							<Play size={16} />
 							Start
+						</Button>
+						<Button
+							variant="ghost"
+							disabled={!entries.length}
+							onClick={() =>
+								start.mutate(
+									{ template: routine.id, mild: true },
+									{ onSuccess: () => navigate('/train') }
+								)
+							}
+							loading={start.isPending}
+						>
+							<Feather size={16} />
+							Start Mild
 						</Button>
 						<Button onClick={save} loading={update.isPending}>
 							Save

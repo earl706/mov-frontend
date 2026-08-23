@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	Area,
@@ -339,6 +339,15 @@ function CompositionInputs({ profile, lengthUnit }) {
 	const [height, setHeight] = useState(profile?.height ?? '');
 	const [activity, setActivity] = useState(profile?.activity_level || 'moderate');
 
+	// Hydrate once the fitness profile arrives (Body page does not block on it).
+	useEffect(() => {
+		if (!profile) return;
+		setSex(profile.sex || 'unspecified');
+		setBirthdate(profile.birthdate || '');
+		setHeight(profile.height ?? '');
+		setActivity(profile.activity_level || 'moderate');
+	}, [profile?.updated_at]);
+
 	const submit = (e) => {
 		e.preventDefault();
 		save.mutate({
@@ -401,6 +410,20 @@ function CompositionPanel({ composition, profile, weightProfile, lengthUnit, uni
 	const saveWeightProfile = useUpdateWeightProfile();
 	const estimates = composition?.body_fat_estimates || {};
 	const missing = composition?.missing_inputs || [];
+	const [manualPct, setManualPct] = useState(() => weightProfile?.manual_body_fat_pct ?? '');
+
+	useEffect(() => {
+		if (weightProfile == null) return;
+		setManualPct(weightProfile.manual_body_fat_pct ?? '');
+	}, [weightProfile?.updated_at, weightProfile?.manual_body_fat_pct]);
+
+	const saveManualPct = (raw) => {
+		const next = raw === '' ? null : Number(raw);
+		saveWeightProfile.mutate({
+			body_fat_method: 'manual',
+			manual_body_fat_pct: next
+		});
+	};
 
 	return (
 		<Card>
@@ -466,13 +489,9 @@ function CompositionPanel({ composition, profile, weightProfile, lengthUnit, uni
 							step="0.1"
 							min="2"
 							max="70"
-							defaultValue={weightProfile?.manual_body_fat_pct ?? ''}
-							onBlur={(e) =>
-								saveWeightProfile.mutate({
-									body_fat_method: 'manual',
-									manual_body_fat_pct: e.target.value === '' ? null : Number(e.target.value)
-								})
-							}
+							value={manualPct}
+							onChange={(e) => setManualPct(e.target.value)}
+							onBlur={(e) => saveManualPct(e.target.value)}
 						/>
 					)}
 				</div>
@@ -488,6 +507,12 @@ function CompositionPanel({ composition, profile, weightProfile, lengthUnit, uni
 function EnergyPanel({ composition, weightProfile, calories }) {
 	const save = useUpdateWeightProfile();
 	const points = calories?.points || [];
+	const [targetKcal, setTargetKcal] = useState(() => weightProfile?.calorie_target_kcal ?? '');
+
+	useEffect(() => {
+		if (weightProfile == null) return;
+		setTargetKcal(weightProfile.calorie_target_kcal ?? '');
+	}, [weightProfile?.updated_at, weightProfile?.calorie_target_kcal]);
 
 	return (
 		<Card>
@@ -561,7 +586,8 @@ function EnergyPanel({ composition, weightProfile, calories }) {
 							type="number"
 							min="800"
 							max="6000"
-							defaultValue={weightProfile?.calorie_target_kcal ?? ''}
+							value={targetKcal}
+							onChange={(e) => setTargetKcal(e.target.value)}
 							onBlur={(e) =>
 								save.mutate({
 									calorie_target_mode: 'manual',

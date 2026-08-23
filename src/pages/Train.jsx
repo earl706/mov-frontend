@@ -6,6 +6,7 @@ import {
 	Check,
 	Coffee,
 	Dumbbell,
+	Feather,
 	Pause,
 	Play,
 	Square,
@@ -27,6 +28,7 @@ import {
 	ProgressRing,
 	Select
 } from '../components/ui';
+import { MildBadge } from '../components/workouts/MildBadge';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
 import { cn } from '../lib/format';
 import { formatTimerDisplay } from '../lib/timerFormat';
@@ -116,13 +118,23 @@ function RoutinePicker() {
 									: ' · never done'}
 							</p>
 						</div>
-						<Button
-							onClick={() => start.mutate({ template: suggested.template.id })}
-							loading={start.isPending}
-						>
-							<Play size={16} />
-							Start
-						</Button>
+						<div className="flex flex-wrap items-center gap-2">
+							<Button
+								onClick={() => start.mutate({ template: suggested.template.id })}
+								loading={start.isPending}
+							>
+								<Play size={16} />
+								Start
+							</Button>
+							<Button
+								variant="secondary"
+								onClick={() => start.mutate({ template: suggested.template.id, mild: true })}
+								loading={start.isPending}
+							>
+								<Feather size={16} />
+								Start Mild
+							</Button>
+						</div>
 					</CardBody>
 				</Card>
 			)}
@@ -143,14 +155,25 @@ function RoutinePicker() {
 								</p>
 							</div>
 							{routine.id === suggestedId && <Badge tone="primary">Suggested</Badge>}
-							<Button
-								size="sm"
-								variant="ghost"
-								onClick={() => start.mutate({ template: routine.id })}
-								loading={start.isPending}
-							>
-								Start
-							</Button>
+							<div className="flex shrink-0 items-center gap-1.5">
+								<Button
+									size="sm"
+									variant="ghost"
+									onClick={() => start.mutate({ template: routine.id })}
+									loading={start.isPending}
+								>
+									Start
+								</Button>
+								<Button
+									size="sm"
+									variant="ghost"
+									onClick={() => start.mutate({ template: routine.id, mild: true })}
+									loading={start.isPending}
+								>
+									<Feather size={14} />
+									Start Mild
+								</Button>
+							</div>
 						</div>
 					))}
 				</CardBody>
@@ -264,6 +287,35 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 		await finishSet({ skipped });
 		onSetLogged?.();
 	};
+
+	// Space toggles Start set / Stop set (ignored while typing in fields).
+	useEffect(() => {
+		const onKeyDown = (event) => {
+			if (
+				event.code !== 'Space' ||
+				event.repeat ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.altKey
+			) {
+				return;
+			}
+			const target = event.target;
+			const tag = target?.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+				return;
+			}
+			event.preventDefault();
+			if (logging) return;
+			if (useWorkoutTimerStore.getState().phase === 'work') {
+				void finishSet({ skipped: false }).then(() => onSetLogged?.());
+			} else {
+				useWorkoutTimerStore.getState().startSet();
+			}
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, [logging, finishSet, onSetLogged]);
 
 	const PhaseIcon = alarmActive ? AlertTriangle : resting ? Coffee : working ? Timer : Play;
 
@@ -523,7 +575,12 @@ export default function TrainPage() {
 	return (
 		<div>
 			<PageHeader
-				title={session.template_name || 'Workout'}
+				title={
+					<span className="inline-flex items-center gap-2">
+						{session.template_name || 'Workout'}
+						{session.is_mild && <MildBadge />}
+					</span>
+				}
 				icon={Timer}
 				description={`${totals.done} of ${totals.planned} planned sets logged`}
 				actions={

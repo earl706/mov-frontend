@@ -17,6 +17,7 @@ import {
 	AlertTriangle,
 	Check,
 	Dumbbell,
+	Feather,
 	Flame,
 	History,
 	LayoutDashboard,
@@ -166,12 +167,8 @@ function DashAreaChart({ data, dataKey, name, gradientId, tooltipLabel, domain }
 					strokeWidth={2}
 					fill={`url(#${gradientId})`}
 					connectNulls
-					dot={(props) => {
-						const { cx, cy, payload } = props;
-						if (cx == null || cy == null || payload?.[dataKey] == null) return null;
-						return <circle cx={cx} cy={cy} r={3} fill="var(--primary)" />;
-					}}
-					activeDot={{ r: 4 }}
+					dot={false}
+					activeDot={false}
 				/>
 			</AreaChart>
 		</ResponsiveContainer>
@@ -221,17 +218,36 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 		);
 	} else if (suggested) {
 		action = (
-			<Button
-				size="sm"
-				className="h-7 max-w-38 truncate px-2 text-xs"
-				onClick={() =>
-					start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
-				}
-				loading={start.isPending}
-			>
-				<Play size={12} />
-				Start {suggested.name}
-			</Button>
+			<div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
+				<Button
+					size="sm"
+					className="h-7 max-w-38 truncate px-2 text-xs"
+					onClick={() =>
+						start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
+					}
+					loading={start.isPending}
+				>
+					<Play size={12} />
+					Start {suggested.name}
+				</Button>
+				<Button
+					size="sm"
+					variant="secondary"
+					className="h-7 px-2 text-xs"
+					onClick={() =>
+						start.mutate(
+							{ template: suggested.id, mild: true },
+							{ onSuccess: () => navigate('/train') }
+						)
+					}
+					loading={start.isPending}
+					aria-label={`Start Mild ${suggested.name}`}
+					title="Start Mild — half sets"
+				>
+					<Feather size={12} />
+					Mild
+				</Button>
+			</div>
 		);
 	} else if (todayIsRest) {
 		action = (
@@ -461,7 +477,7 @@ export default function Dashboard() {
 		() =>
 			(volumeSeries?.points || []).map((d) => ({
 				...d,
-				// Match Body Trend: only plot real sessions as dots/area (gaps stay null).
+				// Match Body Trend: only plot real sessions in the area (gaps stay null).
 				volume_kg: d.trained || d.volume_kg > 0 ? d.volume_kg : null
 			})),
 		[volumeSeries?.points]

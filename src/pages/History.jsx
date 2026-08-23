@@ -22,8 +22,10 @@ import {
 	EmptyState,
 	LoadingScreen,
 	Modal,
+	Pagination,
 	StatCard
 } from '../components/ui';
+import { MildBadge } from '../components/workouts/MildBadge';
 import { formatDate, formatDurationSeconds } from '../lib/format';
 import {
 	sessionsApi,
@@ -33,6 +35,7 @@ import {
 } from '../lib/resources';
 
 const STATUS_TONE = { completed: 'success', active: 'primary', abandoned: 'neutral' };
+const PAGE_SIZE = 5;
 
 function isRoutineSession(session) {
 	return session.template != null || Boolean(session.template_name);
@@ -158,10 +161,13 @@ function SessionDetail({ session, onClose }) {
 				</Button>
 			}
 		>
-			<p className="text-muted mb-3 text-sm">
-				{formatDate(session.date, 'EEEE, MMM d, yyyy')} · {session.total_sets} sets ·{' '}
-				{session.total_reps} reps · {Number(session.total_volume_kg)} kg ·{' '}
-				{Number(session.calories_burned)} kcal
+			<p className="text-muted mb-3 flex flex-wrap items-center gap-2 text-sm">
+				{session.is_mild && <MildBadge />}
+				<span>
+					{formatDate(session.date, 'EEEE, MMM d, yyyy')} · {session.total_sets} sets ·{' '}
+					{session.total_reps} reps · {Number(session.total_volume_kg)} kg ·{' '}
+					{Number(session.calories_burned)} kcal
+				</span>
 			</p>
 
 			<SessionSetChart session={session} />
@@ -205,18 +211,25 @@ export default function HistoryPage() {
 	const { data: stats } = useTrainingStats(28);
 	const { data: series } = useTrainingSeries(30);
 	const { data: heatmap } = useTrainingHeatmap(84);
-	const { data, isLoading } = sessionsApi.useList({ page_size: 40, ordering: '-date' });
+	const [page, setPage] = useState(1);
+	const { data, isLoading, isFetching } = sessionsApi.useList({
+		page,
+		page_size: PAGE_SIZE,
+		ordering: '-date'
+	});
 	const remove = sessionsApi.useRemove();
 	const [detail, setDetail] = useState(null);
 	const [deleteTarget, setDeleteTarget] = useState(null);
 
 	const sessions = data?.results || [];
+	const totalCount = data?.count ?? 0;
+	const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 	const chartData = useMemo(
 		() => (series?.points || []).map((point) => ({ ...point, label: point.date })),
 		[series]
 	);
 
-	if (isLoading) return <LoadingScreen />;
+	if (isLoading && !data) return <LoadingScreen />;
 
 	return (
 		<div>
@@ -304,8 +317,11 @@ export default function HistoryPage() {
 			</div>
 
 			<Card>
-				<CardHeader title="Workouts" subtitle={`${sessions.length} most recent`} />
-				<CardBody className="space-y-2">
+				<CardHeader
+					title="Workouts"
+					subtitle={totalCount ? `${totalCount} total` : 'No workouts yet'}
+				/>
+				<CardBody className={isFetching ? 'space-y-2 opacity-70' : 'space-y-2'}>
 					{!sessions.length && (
 						<EmptyState
 							icon={HistoryIcon}
@@ -327,6 +343,7 @@ export default function HistoryPage() {
 								<p className="text-muted text-xs">{sessionRowSubtitle(session)}</p>
 							</button>
 							<SessionSetChart session={session} compact onClick={() => setDetail(session)} />
+							{session.is_mild && <MildBadge />}
 							<Badge tone={STATUS_TONE[session.status]}>{session.status}</Badge>
 							<button
 								type="button"
@@ -340,6 +357,13 @@ export default function HistoryPage() {
 							</button>
 						</div>
 					))}
+					<Pagination
+						page={page}
+						totalPages={totalPages}
+						count={totalCount}
+						pageSize={PAGE_SIZE}
+						onPageChange={setPage}
+					/>
 				</CardBody>
 			</Card>
 
@@ -363,8 +387,12 @@ export default function HistoryPage() {
 							variant="danger"
 							onClick={() => {
 								if (!deleteTarget) return;
+								const wasLastOnPage = sessions.length === 1 && page > 1;
 								remove.mutate(deleteTarget.id, {
-									onSuccess: () => setDeleteTarget(null)
+									onSuccess: () => {
+										setDeleteTarget(null);
+										if (wasLastOnPage) setPage((p) => Math.max(1, p - 1));
+									}
 								});
 							}}
 							loading={remove.isPending}
