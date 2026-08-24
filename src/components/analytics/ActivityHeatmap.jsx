@@ -115,42 +115,52 @@ export function CompactActivityTile({
 
 	return (
 		<div
-			className={`flex h-full min-h-0 w-full flex-col items-stretch justify-center gap-2 ${className}`}
+			className={`flex max-h-full min-h-0 w-full flex-col items-stretch justify-center gap-2 ${className}`}
 		>
-			<div className="flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5" aria-label={`Activity over the last ${weeks} weeks`}>
-				<div className="flex min-h-0 w-full flex-1 items-stretch gap-[3px]">
-					{gridWeeks.map((week, col) => (
-						<div key={col} className="flex min-h-0 min-w-0 flex-1 flex-col gap-[3px]">
-							{week.map((day, row) => {
-								const lvl = day.outOfRange ? 0 : intensityLevel(day.intensity, maxIntensity);
-								const active = !day.outOfRange && day.date;
-								const isFocus = focus === day.date;
+			<div
+				className="flex w-full shrink-0 flex-col gap-1.5"
+				aria-label={`Activity over the last ${weeks} weeks`}
+			>
+				<div
+					className="grid w-full"
+					style={{
+						gridAutoFlow: 'column',
+						gridTemplateRows: 'repeat(7, minmax(0, 1fr))',
+						gridTemplateColumns: `repeat(${weeks}, minmax(0, 1fr))`,
+						gap: 3,
+						aspectRatio: `${weeks} / 7`
+					}}
+				>
+					{gridWeeks.flatMap((week, col) =>
+						week.map((day, row) => {
+							const lvl = day.outOfRange ? 0 : intensityLevel(day.intensity, maxIntensity);
+							const active = !day.outOfRange && day.date;
+							const isFocus = focus === day.date;
 
-								return (
-									<button
-										key={`${col}-${row}`}
-										type="button"
-										disabled={!active}
-										className={`min-h-0 w-full flex-1 rounded-[3px] transition-[transform,box-shadow,background-color] duration-150 ${
-											active
-												? 'hover:ring-primary/50 focus-visible:ring-primary cursor-pointer hover:ring-1 focus-visible:ring-1 focus-visible:outline-none'
-												: 'pointer-events-none opacity-25'
-										} ${isFocus ? 'ring-primary ring-1' : ''}`}
-										style={{ background: day.outOfRange ? 'transparent' : LEVEL_BG[lvl] }}
-										aria-label={
-											day.date
-												? `${formatDate(day.date, 'MMM d')}: ${day.intensity || 0} activity`
-												: undefined
-										}
-										onMouseEnter={() => active && setFocus(day.date)}
-										onMouseLeave={() => setFocus(null)}
-										onFocus={() => active && setFocus(day.date)}
-										onBlur={() => setFocus(null)}
-									/>
-								);
-							})}
-						</div>
-					))}
+							return (
+								<button
+									key={`${col}-${row}`}
+									type="button"
+									disabled={!active}
+									className={`min-h-0 min-w-0 rounded-[3px] transition-[box-shadow,background-color] duration-150 ${
+										active
+											? 'hover:ring-primary/50 focus-visible:ring-primary cursor-pointer hover:ring-1 focus-visible:ring-1 focus-visible:outline-none'
+											: 'pointer-events-none opacity-25'
+									} ${isFocus ? 'ring-primary ring-1' : ''}`}
+									style={{ background: day.outOfRange ? 'transparent' : LEVEL_BG[lvl] }}
+									aria-label={
+										day.date
+											? `${formatDate(day.date, 'MMM d')}: ${day.intensity || 0} activity`
+											: undefined
+									}
+									onMouseEnter={() => active && setFocus(day.date)}
+									onMouseLeave={() => setFocus(null)}
+									onFocus={() => active && setFocus(day.date)}
+									onBlur={() => setFocus(null)}
+								/>
+							);
+						})
+					)}
 				</div>
 				<div className="relative h-3 w-full shrink-0 text-[9px] leading-none">
 					{labels.map(({ col, month }) => (

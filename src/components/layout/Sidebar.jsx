@@ -1,10 +1,33 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 
+import { MovLogo } from '../brand/MovLogo';
 import { cn } from '../../lib/format';
 import { useUIStore } from '../../stores/uiStore';
 import { navGroups } from './navItems';
+
+function IconWell({ collapsed, active = false, children }) {
+	return (
+		<span
+			className={cn(
+				'relative flex shrink-0 items-center justify-center',
+				collapsed ? 'size-10' : 'size-9'
+			)}
+		>
+			{active ? (
+				<motion.span
+					layoutId="nav-active"
+					className="bg-primary/12 absolute inset-0 rounded-lg"
+					transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+				/>
+			) : (
+				<span className="bg-surface-2 absolute inset-0 rounded-lg opacity-0 transition-opacity group-hover:opacity-100" />
+			)}
+			{children}
+		</span>
+	);
+}
 
 function NavItem({ to, label, icon: Icon, end, collapsed }) {
 	const closeSidebar = useUIStore((s) => s.closeSidebar);
@@ -16,65 +39,65 @@ function NavItem({ to, label, icon: Icon, end, collapsed }) {
 			onClick={closeSidebar}
 			className={({ isActive }) =>
 				cn(
-					'group relative flex cursor-pointer font-medium transition-colors',
+					'group flex cursor-pointer font-medium transition-colors',
 					collapsed
-						? 'flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-2 text-[11px] leading-tight'
-						: 'items-center gap-3 rounded-md px-3 py-2 text-sm',
-					isActive ? 'text-fg' : 'text-muted hover:text-fg hover:bg-surface-2'
+						? 'flex-col items-center gap-1 px-1 py-1 text-[11px] leading-tight'
+						: 'items-center gap-3 rounded-md px-2 py-1 text-sm',
+					isActive ? 'text-fg' : 'text-muted hover:text-fg'
 				)
 			}
 		>
 			{({ isActive }) => (
 				<>
-					{isActive && (
-						<motion.span
-							layoutId="nav-active"
-							className={cn(
-								'bg-primary/12 absolute inset-0',
-								collapsed ? 'rounded-lg' : 'rounded-md'
-							)}
-							transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+					<IconWell collapsed={collapsed} active={isActive}>
+						<Icon
+							size={collapsed ? 20 : 18}
+							strokeWidth={1.75}
+							className={cn('relative z-10', isActive && 'text-primary')}
 						/>
-					)}
-					<Icon
-						size={collapsed ? 20 : 18}
-						strokeWidth={collapsed ? 1.75 : 2}
-						className={cn('relative z-10 shrink-0', isActive && 'text-primary')}
-					/>
-					{(!collapsed || isActive) && (
-						<span
-							className={cn('relative z-10', collapsed && 'max-w-full truncate px-0.5 text-center')}
-						>
-							{label}
-						</span>
-					)}
+					</IconWell>
+					<span className={cn(collapsed && 'max-w-full truncate px-0.5 text-center')}>{label}</span>
 				</>
 			)}
 		</NavLink>
 	);
 }
 
-function SidebarContent({ collapsed = false, showCollapseToggle = false }) {
+function CollapseToggle({ collapsed }) {
 	const toggleSidebarCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
-
 	return (
-		<div
+		<button
+			type="button"
+			onClick={toggleSidebarCollapsed}
 			className={cn(
-				'flex h-full flex-col',
-				collapsed ? 'items-stretch gap-4 px-2 py-4' : 'gap-6 p-4'
+				'group text-muted hover:text-fg flex cursor-pointer items-center font-medium transition-colors',
+				collapsed ? 'flex-col justify-center px-1 py-1' : 'gap-3 rounded-md px-2 py-1 text-sm'
 			)}
+			aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			aria-expanded={!collapsed}
+			title={collapsed ? 'Expand' : 'Collapse'}
 		>
-			<div
-				className={cn('flex items-center pt-1', collapsed ? 'justify-center px-0' : 'gap-2 px-2')}
-			>
-				<div className="bg-primary text-primary-fg flex h-9 w-9 shrink-0 items-center justify-center rounded-sm">
-					<Zap size={18} />
+			<IconWell collapsed={collapsed}>
+				<PanelLeft size={collapsed ? 20 : 18} strokeWidth={1.75} className="relative z-10" />
+			</IconWell>
+			{!collapsed && <span>Collapse</span>}
+		</button>
+	);
+}
+
+function SidebarContent({ collapsed = false, showCollapseToggle = false }) {
+	return (
+		<div className={cn('flex h-full flex-col', collapsed ? 'px-2 py-4' : 'p-4')}>
+			<div className={cn('flex flex-col gap-2', collapsed && 'items-center')}>
+				<div className={cn('flex items-center pt-1', collapsed ? 'justify-center' : 'gap-2 px-2')}>
+					<MovLogo size={36} iconSize={18} />
+					{!collapsed && <span className="text-fg text-lg font-bold tracking-tight">Mov</span>}
 				</div>
-				{!collapsed && <span className="text-fg text-lg font-bold tracking-tight">Mov</span>}
+				{showCollapseToggle && <CollapseToggle collapsed={collapsed} />}
 			</div>
 
 			<nav
-				className={cn('flex-1 overflow-y-auto', collapsed ? 'space-y-1' : 'space-y-6')}
+				className={cn('mt-4 flex-1 overflow-y-auto', collapsed ? 'space-y-3' : 'space-y-6')}
 				aria-label="Primary"
 			>
 				{navGroups.map((group) => (
@@ -84,7 +107,7 @@ function SidebarContent({ collapsed = false, showCollapseToggle = false }) {
 								{group.label}
 							</p>
 						)}
-						<div className={cn(collapsed ? 'space-y-1' : 'space-y-0.5')}>
+						<div className="space-y-0.5">
 							{group.items.map((item) => (
 								<NavItem key={item.to} {...item} collapsed={collapsed} />
 							))}
@@ -93,24 +116,7 @@ function SidebarContent({ collapsed = false, showCollapseToggle = false }) {
 				))}
 			</nav>
 
-			<div className={cn('mt-auto space-y-2', collapsed ? 'px-0' : 'px-0')}>
-				{!collapsed && <p className="text-muted px-3 text-xs">Mov · prototype</p>}
-				{showCollapseToggle && (
-					<button
-						type="button"
-						onClick={toggleSidebarCollapsed}
-						className={cn(
-							'text-muted hover:text-fg hover:bg-surface-2 flex w-full cursor-pointer items-center rounded-md transition-colors',
-							collapsed ? 'justify-center px-1 py-2.5' : 'gap-3 px-3 py-2 text-sm font-medium'
-						)}
-						aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-						aria-expanded={!collapsed}
-						title={collapsed ? 'Expand' : 'Collapse'}
-					>
-						{collapsed ? <ChevronRight size={20} strokeWidth={1.75} /> : <ChevronLeft size={18} />}
-					</button>
-				)}
-			</div>
+			{!collapsed && <p className="text-muted mt-auto px-3 text-xs">Mov · prototype</p>}
 		</div>
 	);
 }

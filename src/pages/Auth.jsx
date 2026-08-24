@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
 import { defaultRememberMe } from '../lib/desktop';
+import { MovLogo } from '../components/brand/MovLogo';
 import { Button, Input, LoadingScreen } from '../components/ui';
 import PinInput from '../components/auth/PinInput';
 
@@ -27,9 +27,7 @@ export function AuthShell({ children }) {
 			<div className="bg-primary relative hidden w-1/2 overflow-hidden lg:block">
 				<div className="text-primary-fg relative flex h-full flex-col justify-between p-12">
 					<div className="flex items-center gap-2">
-						<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-white/20">
-							<Zap size={22} />
-						</div>
+						<MovLogo size={40} iconSize={22} className="bg-white/20" />
 						<span className="text-2xl font-bold">Mov</span>
 					</div>
 					<h1 className="text-4xl leading-tight font-bold">
@@ -44,6 +42,10 @@ export function AuthShell({ children }) {
 					animate={{ opacity: 1, y: 0 }}
 					className="w-full max-w-sm"
 				>
+					<div className="mb-6 flex items-center gap-2 lg:hidden">
+						<MovLogo size={36} iconSize={18} />
+						<span className="text-fg text-xl font-bold">Mov</span>
+					</div>
 					{children}
 				</motion.div>
 			</div>

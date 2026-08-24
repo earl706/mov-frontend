@@ -25,7 +25,6 @@ import {
 	Input,
 	LoadingScreen,
 	Modal,
-	ProgressRing,
 	Select
 } from '../components/ui';
 import { MildBadge } from '../components/workouts/MildBadge';
@@ -183,69 +182,100 @@ function RoutinePicker() {
 }
 
 // -----------------------------------------------------------------------------
-// Apple Watch–style nested activity rings (Sets outer, Session inner)
+// Nested timer rings: sets (outer, warning), session (middle, primary), rest (inner)
 // -----------------------------------------------------------------------------
 
-function ActivityRings({ sessionExercise, totals, size = 64 }) {
+const RING_TONE = {
+	primary: 'var(--primary)',
+	success: 'var(--success)',
+	warning: 'var(--warning)',
+	danger: 'var(--danger)'
+};
+
+function RingArc({ cx, cy, r, stroke, pct, color }) {
+	const c = 2 * Math.PI * r;
+	const clamped = Math.max(0, Math.min(100, pct));
+	return (
+		<>
+			<circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
+			<circle
+				cx={cx}
+				cy={cy}
+				r={r}
+				fill="none"
+				strokeWidth={stroke}
+				strokeLinecap="round"
+				strokeDasharray={c}
+				strokeDashoffset={c - (clamped / 100) * c}
+				style={{
+					stroke: color,
+					transition: 'stroke-dashoffset 0.5s linear, stroke 0.35s ease'
+				}}
+			/>
+		</>
+	);
+}
+
+function TimerRings({
+	sessionExercise,
+	totals,
+	restPct,
+	restTone,
+	size = 300,
+	stroke = 8,
+	children
+}) {
 	const setsDone = sessionExercise ? loggedSets(sessionExercise) : 0;
 	const setsGoal = sessionExercise ? Math.max(1, sessionExercise.planned_sets) : 0;
 	const setsPct = setsGoal ? Math.min(100, (setsDone / setsGoal) * 100) : 0;
 	const sessionPct = totals.planned ? Math.min(100, (totals.done / totals.planned) * 100) : 0;
 
-	const gap = 1.5;
-	const outerStroke = 4.5;
-	const innerStroke = 4.5;
-	const outerR = (size - outerStroke) / 2;
-	const innerR = outerR - outerStroke / 2 - gap - innerStroke / 2;
-	const outerC = 2 * Math.PI * outerR;
-	const innerC = 2 * Math.PI * innerR;
+	const gap = 2;
+	const cx = size / 2;
+	const outerR = (size - stroke) / 2;
+	const middleR = outerR - stroke - gap;
+	const innerR = middleR - stroke - gap;
 
 	return (
-		<svg
-			width={size}
-			height={size}
-			className="-rotate-90"
-			aria-label={`Sets ${setsDone}/${setsGoal}, Session ${totals.done}/${totals.planned}`}
+		<div
+			className="relative inline-flex items-center justify-center"
+			style={{ width: size, height: size }}
 		>
-			<circle
-				cx={size / 2}
-				cy={size / 2}
-				r={outerR}
-				fill="none"
-				stroke="var(--surface-2)"
-				strokeWidth={outerStroke}
-			/>
-			<circle
-				cx={size / 2}
-				cy={size / 2}
-				r={outerR}
-				fill="none"
-				strokeWidth={outerStroke}
-				strokeLinecap="round"
-				strokeDasharray={outerC}
-				strokeDashoffset={outerC - (setsPct / 100) * outerC}
-				style={{ stroke: 'var(--success)', transition: 'stroke-dashoffset 0.5s linear' }}
-			/>
-			<circle
-				cx={size / 2}
-				cy={size / 2}
-				r={innerR}
-				fill="none"
-				stroke="var(--surface-2)"
-				strokeWidth={innerStroke}
-			/>
-			<circle
-				cx={size / 2}
-				cy={size / 2}
-				r={innerR}
-				fill="none"
-				strokeWidth={innerStroke}
-				strokeLinecap="round"
-				strokeDasharray={innerC}
-				strokeDashoffset={innerC - (sessionPct / 100) * innerC}
-				style={{ stroke: 'var(--primary)', transition: 'stroke-dashoffset 0.5s linear' }}
-			/>
-		</svg>
+			<svg
+				width={size}
+				height={size}
+				className="-rotate-90"
+				aria-label={`Sets ${setsDone}/${setsGoal}, session ${totals.done}/${totals.planned}${
+					restPct > 0 ? `, rest ${Math.round(restPct)}%` : ''
+				}`}
+			>
+				<RingArc
+					cx={cx}
+					cy={cx}
+					r={outerR}
+					stroke={stroke}
+					pct={setsPct}
+					color={RING_TONE.warning}
+				/>
+				<RingArc
+					cx={cx}
+					cy={cx}
+					r={middleR}
+					stroke={stroke}
+					pct={sessionPct}
+					color={RING_TONE.primary}
+				/>
+				<RingArc
+					cx={cx}
+					cy={cx}
+					r={innerR}
+					stroke={stroke}
+					pct={restPct}
+					color={RING_TONE[restTone] || RING_TONE.primary}
+				/>
+			</svg>
+			<div className="absolute inset-0 flex items-center justify-center">{children}</div>
+		</div>
 	);
 }
 
@@ -336,20 +366,14 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 						? `Up next · ${describePrescription(headerExercise)}`
 						: `Set ${timer.setIndex} of ${sessionExercise.planned_sets} · ${describePrescription(sessionExercise)}`
 				}
-				action={
-					<div className="flex items-center gap-2">
-						<ActivityRings sessionExercise={sessionExercise} totals={totals} size={72} />
-					</div>
-				}
 			/>
 			<CardBody className="space-y-4">
 				<div className="flex justify-center">
-					<ProgressRing
-						value={restPct}
-						size={240}
-						stroke={8}
-						tone={ringTone}
-						aria-label={resting ? 'Rest remaining' : 'Set timer'}
+					<TimerRings
+						sessionExercise={sessionExercise}
+						totals={totals}
+						restPct={restPct}
+						restTone={ringTone}
 					>
 						<p
 							className={cn(
@@ -362,7 +386,7 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 						>
 							{formatTimerDisplay(displaySeconds)}
 						</p>
-					</ProgressRing>
+					</TimerRings>
 				</div>
 
 				<div className="space-y-2">

@@ -416,7 +416,9 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 	return (
 		<Card className="flex min-h-0 flex-col overflow-hidden">
 			<CardHeader className={compactHeader} title="Logged days" subtitle="Weigh-ins" />
-			<CardBody className={`${compactBody} flex min-h-0 flex-1 items-center justify-center`}>
+			<CardBody
+				className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
+			>
 				<CompactActivityTile
 					timeline={(weightHeatmap?.timeline || []).map((d) => ({
 						...d,
@@ -432,16 +434,11 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 
 function ReadinessCard({ adherence, consistency, risk, dense = false }) {
 	return (
-		<Card className="flex min-h-0 flex-col overflow-hidden lg:h-full">
-			<CardHeader
-				className={dense ? 'p-2 pb-0' : compactHeader}
-				title={dense ? 'Signals' : 'Training signals'}
-				subtitle={dense ? undefined : 'Last 4 weeks'}
-			/>
+		<Card className="flex min-h-0 flex-col items-center justify-center overflow-hidden lg:h-full">
 			<CardBody
 				className={
 					dense
-						? 'flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1.5 pt-0'
+						? 'flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1.5'
 						: `${compactBody} flex flex-1 items-center justify-center`
 				}
 			>
@@ -634,7 +631,9 @@ export default function Dashboard() {
 
 					<Card className="flex min-h-0 flex-col overflow-hidden">
 						<CardHeader className={compactHeader} title="Training days" subtitle="Workouts" />
-						<CardBody className={`${compactBody} flex min-h-0 flex-1 items-center justify-center`}>
+						<CardBody
+							className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
+						>
 							<CompactActivityTile
 								timeline={heatmap?.timeline || []}
 								weeks={HEATMAP_WEEKS}
