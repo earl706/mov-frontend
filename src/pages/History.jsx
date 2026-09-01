@@ -1,17 +1,8 @@
 import { useMemo, useState } from 'react';
-import {
-	Bar,
-	BarChart,
-	CartesianGrid,
-	Legend,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis
-} from 'recharts';
 import { Activity, Dumbbell, Flame, History as HistoryIcon, Trash2 } from 'lucide-react';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
+import { SetWorkRestBarChart } from '../components/analytics/SetWorkRestBarChart';
 import { PageHeader } from '../components/layout/PageHeader';
 import {
 	Badge,
@@ -59,7 +50,10 @@ function sessionSetChartData(session) {
 				key: `${exercise.id}-${set.index}`,
 				tick: String(rows.length + 1),
 				name: exercise.exercise_name,
-				index: set.index,
+				exercise_name: exercise.exercise_name,
+				set_index: set.index,
+				work_seconds: set.work_seconds || 0,
+				rest_seconds: set.rest_seconds || 0,
 				work: set.work_seconds || 0,
 				rest: set.rest_seconds || 0
 			});
@@ -68,81 +62,22 @@ function sessionSetChartData(session) {
 	return rows;
 }
 
-function setTimeTooltip() {
-	return (
-		<Tooltip
-			labelFormatter={(_, payload) => {
-				const row = payload?.[0]?.payload;
-				return row ? `${row.name} · set ${row.index}` : '';
-			}}
-			formatter={(value, name) => [formatDurationSeconds(value), name]}
-			contentStyle={{
-				background: 'var(--surface)',
-				border: '1px solid var(--line)',
-				borderRadius: 8,
-				fontSize: 12
-			}}
-		/>
-	);
-}
-
 function SessionSetChart({ session, compact = false, onClick }) {
-	const data = useMemo(() => sessionSetChartData(session), [session]);
-	if (!data.length) return null;
+	const sets = useMemo(() => sessionSetChartData(session), [session]);
+	if (!sets.length) return null;
 
 	return (
 		<div
-			className={compact ? 'h-12 w-28 shrink-0 cursor-pointer sm:h-14 sm:w-40' : 'mb-3 h-44'}
 			onClick={onClick}
 			role={compact ? 'img' : undefined}
 			aria-label={compact ? 'Work and rest per set' : undefined}
+			className={compact ? 'cursor-pointer' : undefined}
 		>
-			<ResponsiveContainer width="100%" height="100%">
-				<BarChart
-					data={data}
-					margin={
-						compact
-							? { top: 2, right: 0, left: 0, bottom: 2 }
-							: { top: 4, right: 4, left: -12, bottom: 0 }
-					}
-					barCategoryGap={compact ? 2 : 8}
-				>
-					{!compact && <CartesianGrid stroke="var(--line)" vertical={false} />}
-					{!compact && (
-						<XAxis
-							dataKey="tick"
-							tick={{ fill: 'var(--muted)', fontSize: 11 }}
-							axisLine={false}
-							tickLine={false}
-						/>
-					)}
-					{!compact && (
-						<YAxis
-							tick={{ fill: 'var(--muted)', fontSize: 11 }}
-							axisLine={false}
-							tickLine={false}
-							tickFormatter={(value) => formatDurationSeconds(value)}
-						/>
-					)}
-					{setTimeTooltip()}
-					{!compact && <Legend wrapperStyle={{ fontSize: 12 }} />}
-					<Bar
-						dataKey="work"
-						name="Work"
-						stackId="time"
-						fill="var(--primary)"
-						maxBarSize={compact ? 10 : undefined}
-					/>
-					<Bar
-						dataKey="rest"
-						name="Rest"
-						stackId="time"
-						fill="var(--success)"
-						maxBarSize={compact ? 10 : undefined}
-						radius={[4, 4, 0, 0]}
-					/>
-				</BarChart>
-			</ResponsiveContainer>
+			<SetWorkRestBarChart
+				sets={sets}
+				compact
+				className={compact ? undefined : 'mb-3 h-44 w-full'}
+			/>
 		</div>
 	);
 }

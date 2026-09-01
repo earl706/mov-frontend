@@ -51,6 +51,13 @@ export function useTrainingHeatmap(days = 84) {
 	});
 }
 
+export function useRecentSets(limit = 30) {
+	return useQuery({
+		queryKey: ['training', 'recent-sets', limit],
+		queryFn: () => get('/workout-sessions/recent-sets/', { params: { limit } })
+	});
+}
+
 export function useSuggestedRoutine() {
 	const localDate = useLocalCalendarDate();
 	return useQuery({

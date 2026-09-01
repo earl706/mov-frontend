@@ -2,16 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns';
-import {
-	Area,
-	AreaChart,
-	Bar,
-	BarChart,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis
-} from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
 	Activity,
 	AlertTriangle,
@@ -28,9 +19,9 @@ import {
 } from 'lucide-react';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
+import { SetWorkRestBarChart } from '../components/analytics/SetWorkRestBarChart';
 import { PageHeader } from '../components/layout/PageHeader';
 import {
-	Badge,
 	Button,
 	Card,
 	CardBody,
@@ -39,10 +30,11 @@ import {
 	ProgressRing,
 	StatCard
 } from '../components/ui';
-import { formatDate } from '../lib/format';
+import { formatDate, formatDurationSeconds } from '../lib/format';
 import { formatDelta, formatWeight, localDateKey } from '../lib/weightFormat';
 import {
 	useDashboard,
+	useRecentSets,
 	useStartSession,
 	useTrainingHeatmap,
 	useTrainingInsights,
@@ -57,14 +49,6 @@ import { useAuthStore } from '../stores/authStore';
 const container = { animate: { transition: { staggerChildren: 0.05 } } };
 const item = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 
-const GROUP_LABELS = {
-	push: 'Push',
-	pull: 'Pull',
-	legs: 'Legs',
-	core: 'Core',
-	full_body: 'Full body'
-};
-
 /** Compact card chrome so the dashboard fits one desktop viewport. */
 const compactHeader = 'p-3 pb-1 lg:p-2.5 lg:pb-0.5';
 const compactBody = 'p-3 pt-0 lg:p-2.5 lg:pt-0';
@@ -73,6 +57,7 @@ const chartHeight = 'h-full min-h-36';
 const HEATMAP_WEEKS = 36;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
+const RECENT_SET_LIMIT = 30;
 
 const chartTooltipStyle = {
 	background: 'var(--surface)',
@@ -186,54 +171,46 @@ function greeting() {
 function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 	const navigate = useNavigate();
 	const start = useStartSession();
-	const goalPct = training.weekly_goal
-		? Math.min(100, Math.round((training.sessions_this_week / training.weekly_goal) * 100))
-		: 0;
+	const weeklyGoal = training.weekly_goal || 0;
+	const calendarSessions = training.sessions_calendar_week ?? 0;
+	const goalPct = weeklyGoal ? Math.min(100, Math.round((calendarSessions / weeklyGoal) * 100)) : 0;
+	const ringLabel = weeklyGoal ? `${calendarSessions}/${weeklyGoal}` : `${calendarSessions}`;
 
-	let statusBadge;
+	let statusLabel;
 	if (training.trained_today) {
-		statusBadge = (
-			<Badge tone="success" className="px-1.5 py-0 text-[10px]">
-				<Check size={10} />
-				Done today
-			</Badge>
-		);
+		statusLabel = 'Done today';
 	} else if (todayIsRest) {
-		statusBadge = <Badge className="px-1.5 py-0 text-[10px]">Rest day</Badge>;
+		statusLabel = 'Rest day';
 	} else {
-		statusBadge = (
-			<Badge tone="primary" className="px-1.5 py-0 text-[10px]">
-				Not trained yet
-			</Badge>
-		);
+		statusLabel = 'Not trained yet';
 	}
 
-	let action;
+	let actions;
 	if (activeSession) {
-		action = (
-			<Button size="sm" className="h-7 px-2 text-xs" onClick={() => navigate('/train')}>
+		actions = (
+			<Button size="sm" className="h-8 w-full text-xs" onClick={() => navigate('/train')}>
 				<Timer size={12} />
 				Resume
 			</Button>
 		);
 	} else if (suggested) {
-		action = (
-			<div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
+		actions = (
+			<div className="grid w-full grid-cols-2 gap-1.5">
 				<Button
 					size="sm"
-					className="h-7 max-w-38 truncate px-2 text-xs"
+					className="h-8 min-w-0 truncate px-2 text-xs"
 					onClick={() =>
 						start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
 					}
 					loading={start.isPending}
 				>
 					<Play size={12} />
-					Start {suggested.name}
+					<span className="truncate">Start {suggested.name}</span>
 				</Button>
 				<Button
 					size="sm"
 					variant="secondary"
-					className="h-7 px-2 text-xs"
+					className="h-8 px-2 text-xs"
 					onClick={() =>
 						start.mutate(
 							{ template: suggested.id, mild: true },
@@ -250,19 +227,19 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 			</div>
 		);
 	} else if (todayIsRest) {
-		action = (
+		actions = (
 			<Button
 				variant="secondary"
 				size="sm"
-				className="h-7 px-2 text-xs"
+				className="h-8 w-full text-xs"
 				onClick={() => navigate('/train')}
 			>
 				Train anyway
 			</Button>
 		);
 	} else {
-		action = (
-			<Button size="sm" className="h-7 px-2 text-xs" onClick={() => navigate('/routines')}>
+		actions = (
+			<Button size="sm" className="h-8 w-full text-xs" onClick={() => navigate('/routines')}>
 				Build routine
 			</Button>
 		);
@@ -278,12 +255,28 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 						: 'border-primary/40 h-full overflow-hidden'
 			}
 		>
-			<CardBody className="flex h-full flex-row items-center justify-center gap-2 p-2">
-				<ProgressRing value={goalPct} size={44} stroke={5} />
-				<div className="flex min-w-0 flex-col items-center gap-1">
-					{statusBadge}
-					{action}
+			<CardBody className="flex h-full items-center gap-3 p-2.5">
+				<div className="flex shrink-0 flex-col items-center gap-0.5">
+					<ProgressRing
+						value={goalPct}
+						size={52}
+						stroke={5}
+						tone={training.trained_today ? 'success' : 'primary'}
+					>
+						<span className="text-fg text-[11px] font-semibold tabular-nums">{ringLabel}</span>
+					</ProgressRing>
+					<p
+						className={
+							training.trained_today
+								? 'text-success flex items-center gap-0.5 text-[10px] leading-tight'
+								: 'text-muted text-[10px] leading-tight'
+						}
+					>
+						{training.trained_today && <Check size={10} />}
+						{statusLabel}
+					</p>
 				</div>
+				<div className="flex min-w-0 flex-1 items-center">{actions}</div>
 			</CardBody>
 		</Card>
 	);
@@ -395,7 +388,7 @@ function WeightTrendCard({ unit, chartData, stats }) {
 
 	return (
 		<Card className="flex min-h-0 flex-col">
-			<CardHeader className={compactHeader} title="Body Trend" subtitle="Last 30 days" />
+			<CardHeader className={compactHeader} title="Weight" />
 			<CardBody className={`${compactBody} flex min-h-0 flex-1 flex-col py-1`}>
 				<div className={`${chartHeight} min-h-0 flex-1`}>
 					<DashAreaChart
@@ -415,7 +408,7 @@ function WeightTrendCard({ unit, chartData, stats }) {
 function WeightLoggedDaysCard({ weightHeatmap }) {
 	return (
 		<Card className="flex min-h-0 flex-col overflow-hidden">
-			<CardHeader className={compactHeader} title="Logged days" subtitle="Weigh-ins" />
+			<CardHeader className={compactHeader} title="Logged days" />
 			<CardBody
 				className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
 			>
@@ -427,6 +420,36 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 					weeks={HEATMAP_WEEKS}
 					emptyLabel="No weigh-in"
 				/>
+			</CardBody>
+		</Card>
+	);
+}
+
+function RecentSetsPanel({ data }) {
+	const hasData = (data?.set_count ?? 0) > 0;
+
+	return (
+		<Card className="flex min-h-0 flex-col">
+			<CardHeader
+				className={compactHeader}
+				title="Recent sets"
+				subtitle="Last 30 logged sets · oldest to newest"
+			/>
+			<CardBody className={`${compactBody} space-y-2`}>
+				{hasData ? (
+					<>
+						<p className="text-muted text-xs">
+							{data.set_count} sets · {data.session_count} session
+							{data.session_count === 1 ? '' : 's'} · avg{' '}
+							{formatDurationSeconds(data.avg_work_seconds)} work
+						</p>
+						<SetWorkRestBarChart sets={data.sets} />
+					</>
+				) : (
+					<p className="text-muted text-sm">
+						Log workouts with the set timer to see recent work and rest per set.
+					</p>
+				)}
 			</CardBody>
 		</Card>
 	);
@@ -469,6 +492,7 @@ export default function Dashboard() {
 	}, []);
 	const { data: weightStats } = useWeightStats(weightStatsParams);
 	const { data: weightHeatmap } = useWeightHeatmap(HEATMAP_DAYS);
+	const { data: recentSets } = useRecentSets(RECENT_SET_LIMIT);
 
 	const volumeData = useMemo(
 		() =>
@@ -487,7 +511,7 @@ export default function Dashboard() {
 
 	if (isLoading || !data) return <LoadingScreen />;
 
-	const { training, weight, body, muscle_groups: groups } = data;
+	const { training, weight } = data;
 	const firstName = (user?.full_name || '').split(' ')[0];
 	const hasInsights = Boolean(insights?.insights?.length);
 	const weightUnit = weightProfile?.unit || weightSeries?.unit || weight.unit || 'kg';
@@ -611,10 +635,10 @@ export default function Dashboard() {
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.25] lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.1] lg:grid-cols-2 lg:gap-2"
 				>
 					<Card className="flex min-h-0 flex-col">
-						<CardHeader className={compactHeader} title="Volume & sets" subtitle="Last 30 days" />
+						<CardHeader className={compactHeader} title="Volume" />
 						<CardBody className={`${compactBody} flex min-h-0 flex-1 flex-col py-1`}>
 							<div className={`${chartHeight} min-h-0 flex-1`}>
 								<DashAreaChart
@@ -630,7 +654,7 @@ export default function Dashboard() {
 					</Card>
 
 					<Card className="flex min-h-0 flex-col overflow-hidden">
-						<CardHeader className={compactHeader} title="Training days" subtitle="Workouts" />
+						<CardHeader className={compactHeader} title="Training days" />
 						<CardBody
 							className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
 						>
@@ -645,97 +669,14 @@ export default function Dashboard() {
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.25] lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.1] lg:grid-cols-2 lg:gap-2"
 				>
 					<WeightTrendCard unit={weightUnit} chartData={weightChartData} stats={weightStats} />
 					<WeightLoggedDaysCard weightHeatmap={weightHeatmap} />
 				</motion.div>
 
-				<motion.div
-					variants={item}
-					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[0.85] lg:grid-cols-2 lg:gap-2"
-				>
-					<Card className="flex min-h-0 flex-col">
-						<CardHeader
-							className={compactHeader}
-							title="Muscle balance"
-							subtitle="Sets by group, last 4 weeks"
-						/>
-						<CardBody className={`${compactBody} flex min-h-0 flex-1 flex-col`}>
-							{groups?.length ? (
-								<div className={`${chartHeight} min-h-0 flex-1`}>
-									<ResponsiveContainer width="100%" height="100%">
-										<BarChart data={groups} layout="vertical">
-											<XAxis type="number" hide />
-											<YAxis
-												type="category"
-												dataKey="group"
-												width={70}
-												tickFormatter={(g) => GROUP_LABELS[g] || g}
-												tick={{ fill: 'var(--muted)', fontSize: 11 }}
-												axisLine={false}
-												tickLine={false}
-											/>
-											<Tooltip
-												contentStyle={{
-													background: 'var(--surface)',
-													border: '1px solid var(--line)',
-													borderRadius: 8,
-													fontSize: 12
-												}}
-											/>
-											<Bar dataKey="sets" name="Sets" fill="var(--primary)" radius={4} />
-										</BarChart>
-									</ResponsiveContainer>
-								</div>
-							) : (
-								<p className="text-muted text-sm">Log a workout to see how your volume splits.</p>
-							)}
-						</CardBody>
-					</Card>
-
-					<Card className="flex min-h-0 flex-col">
-						<CardHeader
-							className={compactHeader}
-							title="Body & energy"
-							subtitle="Derived from your latest inputs"
-						/>
-						<CardBody className={`${compactBody} space-y-1.5 text-sm`}>
-							{body.bmi != null ? (
-								<>
-									<p className="text-muted">
-										BMI <span className="text-fg font-medium">{body.bmi}</span>
-									</p>
-									{body.body_fat_pct != null && (
-										<p className="text-muted">
-											Body fat <span className="text-fg font-medium">{body.body_fat_pct}%</span> (
-											{body.body_fat_method})
-										</p>
-									)}
-									{body.lean_mass != null && (
-										<p className="text-muted">
-											Lean mass{' '}
-											<span className="text-fg font-medium">
-												{formatWeight(body.lean_mass, weight.unit)}
-											</span>
-										</p>
-									)}
-									{body.tdee_kcal != null && (
-										<p className="text-muted">
-											Maintenance <span className="text-fg font-medium">{body.tdee_kcal} kcal</span>
-											{body.calorie_target_kcal != null &&
-												body.calorie_target_kcal !== body.tdee_kcal &&
-												` · target ${body.calorie_target_kcal} kcal`}
-										</p>
-									)}
-								</>
-							) : (
-								<p className="text-muted">
-									Add your height, sex, and a weigh-in to unlock body fat, BMR, and calorie targets.
-								</p>
-							)}
-						</CardBody>
-					</Card>
+				<motion.div variants={item} className="lg:shrink-0">
+					<RecentSetsPanel data={recentSets} />
 				</motion.div>
 			</motion.div>
 		</div>
