@@ -57,7 +57,7 @@ const chartHeight = 'h-full min-h-36';
 const HEATMAP_WEEKS = 36;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
-const RECENT_SET_LIMIT = 30;
+const RECENT_SET_LIMIT = 120;
 
 const chartTooltipStyle = {
 	background: 'var(--surface)',
@@ -188,7 +188,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 	let actions;
 	if (activeSession) {
 		actions = (
-			<Button size="sm" className="h-8 w-full text-xs" onClick={() => navigate('/train')}>
+			<Button size="sm" className="h-7 w-full text-xs" onClick={() => navigate('/train')}>
 				<Timer size={12} />
 				Resume
 			</Button>
@@ -198,7 +198,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 			<div className="grid w-full grid-cols-2 gap-1.5">
 				<Button
 					size="sm"
-					className="h-8 min-w-0 truncate px-2 text-xs"
+					className="h-7 min-w-0 truncate px-2 text-xs"
 					onClick={() =>
 						start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
 					}
@@ -210,7 +210,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 				<Button
 					size="sm"
 					variant="secondary"
-					className="h-8 px-2 text-xs"
+					className="h-7 px-2 text-xs"
 					onClick={() =>
 						start.mutate(
 							{ template: suggested.id, mild: true },
@@ -231,7 +231,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 			<Button
 				variant="secondary"
 				size="sm"
-				className="h-8 w-full text-xs"
+				className="h-7 w-full text-xs"
 				onClick={() => navigate('/train')}
 			>
 				Train anyway
@@ -239,7 +239,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 		);
 	} else {
 		actions = (
-			<Button size="sm" className="h-8 w-full text-xs" onClick={() => navigate('/routines')}>
+			<Button size="sm" className="h-7 w-full text-xs" onClick={() => navigate('/routines')}>
 				Build routine
 			</Button>
 		);
@@ -255,24 +255,24 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 						: 'border-primary/40 h-full overflow-hidden'
 			}
 		>
-			<CardBody className="flex h-full items-center gap-3 p-2.5">
-				<div className="flex shrink-0 flex-col items-center gap-0.5">
+			<CardBody className="flex h-full items-center gap-2 p-2">
+				<div className="flex shrink-0 items-center gap-1.5">
 					<ProgressRing
 						value={goalPct}
-						size={52}
-						stroke={5}
+						size={44}
+						stroke={4}
 						tone={training.trained_today ? 'success' : 'primary'}
 					>
-						<span className="text-fg text-[11px] font-semibold tabular-nums">{ringLabel}</span>
+						<span className="text-fg text-[10px] font-semibold tabular-nums">{ringLabel}</span>
 					</ProgressRing>
 					<p
 						className={
 							training.trained_today
-								? 'text-success flex items-center gap-0.5 text-[10px] leading-tight'
-								: 'text-muted text-[10px] leading-tight'
+								? 'text-success max-w-18 text-[10px] leading-tight'
+								: 'text-muted max-w-18 text-[10px] leading-tight'
 						}
 					>
-						{training.trained_today && <Check size={10} />}
+						{training.trained_today && <Check size={10} className="mr-0.5 inline shrink-0" />}
 						{statusLabel}
 					</p>
 				</div>
@@ -425,26 +425,29 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 	);
 }
 
+const recentSetsHeader = 'items-center p-2 pb-0.5 lg:p-1.5 lg:pb-0';
+const recentSetsBody = 'p-2 pt-0 lg:p-1.5 lg:pt-0';
+
 function RecentSetsPanel({ data }) {
 	const hasData = (data?.set_count ?? 0) > 0;
+	const statsLabel = hasData
+		? `${data.set_count} sets · ${data.session_count} session${data.session_count === 1 ? '' : 's'} · avg ${formatDurationSeconds(data.avg_work_seconds)} work`
+		: null;
 
 	return (
 		<Card className="flex min-h-0 flex-col">
 			<CardHeader
-				className={compactHeader}
+				className={recentSetsHeader}
 				title="Recent sets"
-				subtitle="Last 30 logged sets · oldest to newest"
+				action={
+					statsLabel ? (
+						<p className="text-muted shrink-0 text-[11px] leading-tight">{statsLabel}</p>
+					) : null
+				}
 			/>
-			<CardBody className={`${compactBody} space-y-2`}>
+			<CardBody className={recentSetsBody}>
 				{hasData ? (
-					<>
-						<p className="text-muted text-xs">
-							{data.set_count} sets · {data.session_count} session
-							{data.session_count === 1 ? '' : 's'} · avg{' '}
-							{formatDurationSeconds(data.avg_work_seconds)} work
-						</p>
-						<SetWorkRestBarChart sets={data.sets} />
-					</>
+					<SetWorkRestBarChart sets={data.sets} strip />
 				) : (
 					<p className="text-muted text-sm">
 						Log workouts with the set timer to see recent work and rest per set.
@@ -461,7 +464,7 @@ function ReadinessCard({ adherence, consistency, risk, dense = false }) {
 			<CardBody
 				className={
 					dense
-						? 'flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1.5'
+						? 'flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1'
 						: `${compactBody} flex flex-1 items-center justify-center`
 				}
 			>
@@ -469,7 +472,7 @@ function ReadinessCard({ adherence, consistency, risk, dense = false }) {
 					adherence={adherence}
 					consistency={consistency}
 					risk={risk}
-					size={dense ? 64 : 88}
+					size={dense ? 56 : 88}
 				/>
 			</CardBody>
 		</Card>
@@ -549,7 +552,7 @@ export default function Dashboard() {
 			>
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-2 lg:h-28 lg:max-h-28 lg:shrink-0 lg:grid-cols-4 lg:gap-2 lg:overflow-hidden"
+					className="grid grid-cols-1 gap-2 lg:h-24 lg:max-h-24 lg:shrink-0 lg:grid-cols-4 lg:gap-2 lg:overflow-hidden"
 				>
 					<div className="min-h-0 min-w-0 lg:h-full">
 						<TodayCard
@@ -560,13 +563,13 @@ export default function Dashboard() {
 						/>
 					</div>
 
-					<div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-1.5 lg:h-full">
+					<div className="grid min-h-0 grid-cols-2 grid-rows-2 gap-1 lg:h-full">
 						<StatCard
 							dense
 							icon={Flame}
 							label="Streak"
 							value={training.streak_days}
-							className="px-3"
+							className="px-2 py-1"
 						/>
 						<StatCard
 							dense
@@ -574,7 +577,7 @@ export default function Dashboard() {
 							label="Workouts"
 							value={training.total_sessions}
 							onClick={() => navigate('/history')}
-							className="px-3"
+							className="px-2 py-1"
 						/>
 						<StatCard
 							dense
@@ -588,7 +591,7 @@ export default function Dashboard() {
 										? 'down'
 										: 'flat'
 							}
-							className="px-3"
+							className="px-2 py-1"
 						/>
 						<StatCard
 							dense
@@ -596,13 +599,13 @@ export default function Dashboard() {
 							label="Weight"
 							value={weight.current != null ? formatWeight(weight.current, weight.unit) : '—'}
 							onClick={() => navigate('/body')}
-							className="px-3"
+							className="px-2 py-1"
 						/>
 					</div>
 
 					<Card className="flex min-h-0 flex-col overflow-hidden lg:h-full">
-						<CardHeader className="p-2 pb-0" title="Insights" />
-						<CardBody className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2 pt-1">
+						<CardHeader className="p-1.5 pb-0" title="Insights" />
+						<CardBody className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5 pt-0.5">
 							{hasInsights ? (
 								insights.insights.map((insight) => (
 									<div
