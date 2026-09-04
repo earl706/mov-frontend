@@ -57,7 +57,7 @@ export function SetWorkRestBarChart({ sets, compact = false, strip = false, clas
 
 	const chartClass =
 		className ||
-		(strip ? 'h-20 w-full' : compact ? 'h-12 w-28 shrink-0 sm:h-14 sm:w-40' : 'h-44 w-full');
+		(strip ? 'h-[90px] w-full' : compact ? 'h-12 w-28 shrink-0 sm:h-14 sm:w-40' : 'h-44 w-full');
 	const margin = strip
 		? { top: 2, right: 0, left: 0, bottom: 0 }
 		: compact

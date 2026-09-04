@@ -24,6 +24,7 @@ import {
 	useTrainingSeries,
 	useTrainingStats
 } from '../lib/resources';
+import { sessionSetChartData } from '../lib/workoutSession';
 
 const STATUS_TONE = { completed: 'success', active: 'primary', abandoned: 'neutral' };
 const PAGE_SIZE = 5;
@@ -39,27 +40,6 @@ function sessionRowTitle(session) {
 function sessionRowSubtitle(session) {
 	const stats = `${formatDate(session.date, 'EEE, MMM d, yyyy')} · ${session.total_sets} sets · ${Number(session.total_volume_kg)} kg · ${formatDurationSeconds(session.duration_seconds)} · ${Number(session.calories_burned)} kcal`;
 	return session.template_name ? `${session.template_name} · ${stats}` : stats;
-}
-
-function sessionSetChartData(session) {
-	const rows = [];
-	for (const exercise of session.exercises || []) {
-		for (const set of exercise.sets || []) {
-			if (set.skipped) continue;
-			rows.push({
-				key: `${exercise.id}-${set.index}`,
-				tick: String(rows.length + 1),
-				name: exercise.exercise_name,
-				exercise_name: exercise.exercise_name,
-				set_index: set.index,
-				work_seconds: set.work_seconds || 0,
-				rest_seconds: set.rest_seconds || 0,
-				work: set.work_seconds || 0,
-				rest: set.rest_seconds || 0
-			});
-		}
-	}
-	return rows;
 }
 
 function SessionSetChart({ session, compact = false, onClick }) {

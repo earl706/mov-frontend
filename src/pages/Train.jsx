@@ -28,6 +28,7 @@ import {
 	Select
 } from '../components/ui';
 import { MildBadge } from '../components/workouts/MildBadge';
+import { WorkoutSummary } from '../components/workouts/WorkoutSummary';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
 import { cn } from '../lib/format';
 import { formatTimerDisplay } from '../lib/timerFormat';
@@ -528,6 +529,7 @@ export default function TrainPage() {
 	const [finishOpen, setFinishOpen] = useState(false);
 	const [effort, setEffort] = useState('7');
 	const [notes, setNotes] = useState('');
+	const [summarySession, setSummarySession] = useState(null);
 
 	const session = data?.session || null;
 	const attachSession = useWorkoutTimerStore((s) => s.attachSession);
@@ -565,6 +567,10 @@ export default function TrainPage() {
 
 	if (isLoading) return <LoadingScreen />;
 
+	if (summarySession) {
+		return <WorkoutSummary session={summarySession} onDone={() => setSummarySession(null)} />;
+	}
+
 	if (!session) {
 		return (
 			<div>
@@ -579,7 +585,7 @@ export default function TrainPage() {
 	}
 
 	const finish = async () => {
-		await complete.mutateAsync({
+		const completed = await complete.mutateAsync({
 			sessionId: session.id,
 			perceived_effort: effort === '' ? null : Number(effort),
 			notes
@@ -587,7 +593,8 @@ export default function TrainPage() {
 		clearSession();
 		setFinishOpen(false);
 		setNotes('');
-		refetch();
+		setEffort('7');
+		setSummarySession(completed);
 	};
 
 	const discard = async () => {

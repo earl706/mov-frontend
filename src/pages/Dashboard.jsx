@@ -195,7 +195,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 		);
 	} else if (suggested) {
 		actions = (
-			<div className="grid w-full grid-cols-2 gap-1.5">
+			<div className="flex w-full flex-col items-center justify-center gap-1.5">
 				<Button
 					size="sm"
 					className="h-7 min-w-0 truncate px-2 text-xs"
@@ -205,7 +205,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 					loading={start.isPending}
 				>
 					<Play size={12} />
-					<span className="truncate">Start {suggested.name}</span>
+					<span className="truncate">Start</span>
 				</Button>
 				<Button
 					size="sm"
@@ -249,13 +249,13 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 		<Card
 			className={
 				training.trained_today
-					? 'border-success/40 h-full overflow-hidden'
+					? 'border-success/40 flex h-full flex-col overflow-hidden'
 					: todayIsRest
-						? 'h-full overflow-hidden'
-						: 'border-primary/40 h-full overflow-hidden'
+						? 'flex h-full flex-col overflow-hidden'
+						: 'border-primary/40 flex h-full flex-col overflow-hidden'
 			}
 		>
-			<CardBody className="flex h-full items-center gap-2 p-2">
+			<CardBody className="flex flex-1 items-center gap-2 px-2 pt-3 pb-2">
 				<div className="flex shrink-0 items-center gap-1.5">
 					<ProgressRing
 						value={goalPct}
@@ -425,8 +425,8 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 	);
 }
 
-const recentSetsHeader = 'items-center p-2 pb-0.5 lg:p-1.5 lg:pb-0';
-const recentSetsBody = 'p-2 pt-0 lg:p-1.5 lg:pt-0';
+const recentSetsHeader = 'items-center p-2 pb-0.5 lg:p-3 lg:pb-0';
+const recentSetsBody = 'p-2 pt-0 lg:p-3 lg:pt-0';
 
 function RecentSetsPanel({ data }) {
 	const hasData = (data?.set_count ?? 0) > 0;
@@ -638,7 +638,7 @@ export default function Dashboard() {
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.1] lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-2 lg:gap-2"
 				>
 					<Card className="flex min-h-0 flex-col">
 						<CardHeader className={compactHeader} title="Volume" />
@@ -672,7 +672,7 @@ export default function Dashboard() {
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-[1.1] lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-2 lg:gap-2"
 				>
 					<WeightTrendCard unit={weightUnit} chartData={weightChartData} stats={weightStats} />
 					<WeightLoggedDaysCard weightHeatmap={weightHeatmap} />
