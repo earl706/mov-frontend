@@ -9,6 +9,7 @@ import {
 	Feather,
 	Pause,
 	Play,
+	RotateCcw,
 	Square,
 	Timer,
 	Trash2
@@ -42,6 +43,7 @@ import {
 } from '../lib/resources';
 import { isExerciseFinished, loggedSets } from '../lib/workoutSession';
 import {
+	selectCanUndoLastSet,
 	selectDisplaySeconds,
 	selectRestRemaining,
 	selectResting,
@@ -285,11 +287,13 @@ function TimerRings({
 // -----------------------------------------------------------------------------
 
 function SetTimer({ sessionExercise, totals, onSetLogged }) {
-	const { finishSet, logging } = useWorkoutAutoAdvance();
+	const { finishSet, undoLastSet, logging, undoing } = useWorkoutAutoAdvance();
 	const timer = useWorkoutTimerStore();
 	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
 	const restRemaining = useWorkoutTimerStore(selectRestRemaining);
 	const resting = useWorkoutTimerStore(selectResting);
+	const undoAvailable = useWorkoutTimerStore(selectCanUndoLastSet);
+	const [undoOpen, setUndoOpen] = useState(false);
 	const alarmActive = timer.alarmActive;
 	const working = timer.phase === 'work';
 	const restOrAlarm = resting || alarmActive;
@@ -319,6 +323,12 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 		onSetLogged?.();
 	};
 
+	const confirmUndo = async () => {
+		await undoLastSet();
+		setUndoOpen(false);
+		onSetLogged?.();
+	};
+
 	// Space toggles Start set / Stop set (ignored while typing in fields).
 	useEffect(() => {
 		const onKeyDown = (event) => {
@@ -337,7 +347,7 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 				return;
 			}
 			event.preventDefault();
-			if (logging) return;
+			if (logging || undoing) return;
 			if (useWorkoutTimerStore.getState().phase === 'work') {
 				void finishSet({ skipped: false }).then(() => onSetLogged?.());
 			} else {
@@ -346,7 +356,7 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 		};
 		window.addEventListener('keydown', onKeyDown);
 		return () => window.removeEventListener('keydown', onKeyDown);
-	}, [logging, finishSet, onSetLogged]);
+	}, [logging, undoing, finishSet, onSetLogged]);
 
 	const PhaseIcon = alarmActive ? AlertTriangle : resting ? Coffee : working ? Timer : Play;
 
@@ -359,162 +369,198 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 				: 'neutral';
 
 	return (
-		<Card>
-			<CardHeader
-				title={headerExercise.exercise_name}
-				subtitle={
-					timer.phase === 'rest_exercise'
-						? `Up next · ${describePrescription(headerExercise)}`
-						: `Set ${timer.setIndex} of ${sessionExercise.planned_sets} · ${describePrescription(sessionExercise)}`
-				}
-			/>
-			<CardBody className="space-y-4">
-				<div className="flex justify-center">
-					<TimerRings
-						sessionExercise={sessionExercise}
-						totals={totals}
-						restPct={restPct}
-						restTone={ringTone}
-					>
-						<p
-							className={cn(
-								'font-mono text-5xl font-semibold tabular-nums transition-colors duration-300 sm:text-6xl',
-								alarmActive && 'text-danger animate-pulse',
-								!alarmActive && resting && 'text-success',
-								!alarmActive && !resting && timer.running && 'text-primary',
-								!alarmActive && !resting && !timer.running && 'text-fg'
-							)}
+		<>
+			<Card>
+				<CardHeader
+					title={headerExercise.exercise_name}
+					subtitle={
+						timer.phase === 'rest_exercise'
+							? `Up next · ${describePrescription(headerExercise)}`
+							: `Set ${timer.setIndex} of ${sessionExercise.planned_sets} · ${describePrescription(sessionExercise)}`
+					}
+				/>
+				<CardBody className="space-y-4">
+					<div className="flex justify-center">
+						<TimerRings
+							sessionExercise={sessionExercise}
+							totals={totals}
+							restPct={restPct}
+							restTone={ringTone}
 						>
-							{formatTimerDisplay(displaySeconds)}
-						</p>
-					</TimerRings>
-				</div>
-
-				<div className="space-y-2">
-					<div className="relative h-10">
-						<AnimatePresence initial={false}>
-							{working ? (
-								<motion.div
-									key="stop"
-									className="absolute inset-0"
-									initial={{ opacity: 0, y: 8 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -8 }}
-									transition={{ duration: 0.2, ease: 'easeOut' }}
-								>
-									<Button
-										variant="primary"
-										onClick={() => submitSet()}
-										loading={logging}
-										disabled={!working}
-										className="h-10 w-full justify-center"
-									>
-										<Square size={16} />
-										Stop set
-									</Button>
-								</motion.div>
-							) : (
-								<motion.div
-									key="start"
-									className="absolute inset-0"
-									initial={{ opacity: 0, y: 8 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -8 }}
-									transition={{ duration: 0.2, ease: 'easeOut' }}
-								>
-									<Button
-										onClick={timer.startSet}
-										disabled={working}
-										className={cn('h-10 w-full justify-center', alarmActive && 'animate-pulse')}
-									>
-										<Play size={16} />
-										Start set
-									</Button>
-								</motion.div>
-							)}
-						</AnimatePresence>
+							<p
+								className={cn(
+									'font-mono text-5xl font-semibold tabular-nums transition-colors duration-300 sm:text-6xl',
+									alarmActive && 'text-danger animate-pulse',
+									!alarmActive && resting && 'text-success',
+									!alarmActive && !resting && timer.running && 'text-primary',
+									!alarmActive && !resting && !timer.running && 'text-fg'
+								)}
+							>
+								{formatTimerDisplay(displaySeconds)}
+							</p>
+						</TimerRings>
 					</div>
-					<div className="relative h-10">
-						<AnimatePresence initial={false}>
-							{working && !timer.running ? (
-								<motion.div
-									key="resume"
-									className="absolute inset-0"
-									initial={{ opacity: 0, y: 8 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -8 }}
-									transition={{ duration: 0.2, ease: 'easeOut' }}
-								>
-									<Button
-										variant="secondary"
-										onClick={timer.startSet}
-										className="h-10 w-full justify-center"
-									>
-										<Play size={16} />
-										Resume
-									</Button>
-								</motion.div>
-							) : (
-								<motion.div
-									key="pause"
-									className="absolute inset-0"
-									initial={{ opacity: 0, y: 8 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -8 }}
-									transition={{ duration: 0.2, ease: 'easeOut' }}
-								>
-									<Button
-										variant="secondary"
-										onClick={timer.pauseSet}
-										disabled={!working || !timer.running}
-										className="h-10 w-full justify-center"
-									>
-										<Pause size={16} />
-										Pause
-									</Button>
-								</motion.div>
-							)}
-						</AnimatePresence>
-					</div>
-				</div>
 
-				<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-					<Input
-						label="Load (kg)"
-						type="number"
-						step="0.5"
-						min="0"
-						max="500"
-						value={timer.loadInput}
-						onChange={(e) => timer.setLoadInput(e.target.value)}
-						placeholder={timer.targetLoad || 'Bodyweight'}
-					/>
-					<Select
-						label="RPE"
-						value={timer.rpeInput}
-						onChange={(e) => timer.setRpeInput(e.target.value)}
-					>
-						<option value="">—</option>
-						{[5, 6, 7, 8, 9, 10].map((n) => (
-							<option key={n} value={n}>
-								{n}
-							</option>
-						))}
-					</Select>
-					<div className="flex items-end">
-						<Button
-							variant="ghost"
-							className="w-full"
-							onClick={() => submitSet({ skipped: true })}
-							loading={logging}
-							disabled={restOrAlarm}
+					<div className="space-y-2">
+						<div className="relative h-10">
+							<AnimatePresence initial={false}>
+								{working ? (
+									<motion.div
+										key="stop"
+										className="absolute inset-0"
+										initial={{ opacity: 0, y: 8 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -8 }}
+										transition={{ duration: 0.2, ease: 'easeOut' }}
+									>
+										<Button
+											variant="primary"
+											onClick={() => submitSet()}
+											loading={logging}
+											disabled={!working || undoing}
+											className="h-10 w-full justify-center"
+										>
+											<Square size={16} />
+											Stop set
+										</Button>
+									</motion.div>
+								) : (
+									<motion.div
+										key="start"
+										className="absolute inset-0"
+										initial={{ opacity: 0, y: 8 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -8 }}
+										transition={{ duration: 0.2, ease: 'easeOut' }}
+									>
+										<Button
+											onClick={timer.startSet}
+											disabled={working || undoing}
+											className={cn('h-10 w-full justify-center', alarmActive && 'animate-pulse')}
+										>
+											<Play size={16} />
+											Start set
+										</Button>
+									</motion.div>
+								)}
+							</AnimatePresence>
+						</div>
+						<div className="relative h-10">
+							<AnimatePresence initial={false}>
+								{working && !timer.running ? (
+									<motion.div
+										key="resume"
+										className="absolute inset-0"
+										initial={{ opacity: 0, y: 8 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -8 }}
+										transition={{ duration: 0.2, ease: 'easeOut' }}
+									>
+										<Button
+											variant="secondary"
+											onClick={timer.startSet}
+											className="h-10 w-full justify-center"
+										>
+											<Play size={16} />
+											Resume
+										</Button>
+									</motion.div>
+								) : (
+									<motion.div
+										key="pause"
+										className="absolute inset-0"
+										initial={{ opacity: 0, y: 8 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -8 }}
+										transition={{ duration: 0.2, ease: 'easeOut' }}
+									>
+										<Button
+											variant="secondary"
+											onClick={timer.pauseSet}
+											disabled={!working || !timer.running || undoing}
+											className="h-10 w-full justify-center"
+										>
+											<Pause size={16} />
+											Pause
+										</Button>
+									</motion.div>
+								)}
+							</AnimatePresence>
+						</div>
+						{undoAvailable && (
+							<Button
+								variant="ghost"
+								onClick={() => setUndoOpen(true)}
+								loading={undoing}
+								disabled={logging}
+								className="h-10 w-full justify-center"
+							>
+								<RotateCcw size={16} />
+								Undo last set
+							</Button>
+						)}
+					</div>
+
+					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+						<Input
+							label="Load (kg)"
+							type="number"
+							step="0.5"
+							min="0"
+							max="500"
+							value={timer.loadInput}
+							onChange={(e) => timer.setLoadInput(e.target.value)}
+							placeholder={timer.targetLoad || 'Bodyweight'}
+						/>
+						<Select
+							label="RPE"
+							value={timer.rpeInput}
+							onChange={(e) => timer.setRpeInput(e.target.value)}
 						>
-							Skip this set
+							<option value="">—</option>
+							{[5, 6, 7, 8, 9, 10].map((n) => (
+								<option key={n} value={n}>
+									{n}
+								</option>
+							))}
+						</Select>
+						<div className="flex items-end">
+							<Button
+								variant="ghost"
+								className="w-full"
+								onClick={() => submitSet({ skipped: true })}
+								loading={logging}
+								disabled={restOrAlarm || undoing}
+							>
+								Skip this set
+							</Button>
+						</div>
+					</div>
+				</CardBody>
+			</Card>
+
+			<Modal
+				open={undoOpen}
+				onClose={() => setUndoOpen(false)}
+				title="Undo last set?"
+				size="sm"
+				footer={
+					<>
+						<Button variant="ghost" onClick={() => setUndoOpen(false)} disabled={undoing}>
+							Keep rest
 						</Button>
-					</div>
-				</div>
-			</CardBody>
-		</Card>
+						<Button onClick={confirmUndo} loading={undoing}>
+							Undo last set
+						</Button>
+					</>
+				}
+			>
+				<p className="text-muted text-sm">
+					Removes the set you just logged and returns you to that set with the same work time, load,
+					and RPE. Rest time since stopping is discarded.
+				</p>
+			</Modal>
+		</>
 	);
 }
 

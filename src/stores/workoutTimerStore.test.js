@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	selectCanUndoLastSet,
 	selectDisplaySeconds,
 	selectRestRemaining,
 	selectResting,
@@ -432,5 +433,76 @@ describe('workoutTimerStore', () => {
 		expect(store().advanceAfterLog({})).toBe('done');
 		expect(store().phase).toBe('idle');
 		expect(store().running).toBe(false);
+	});
+
+	it('captures an undo snapshot and restores work during set rest', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(18);
+		doReps(8);
+		store().setRpeInput('8');
+		store().setLoadInput('62.5');
+		store().captureUndoSnapshot();
+
+		expect(store().advanceAfterLog()).toBe('rest_set');
+		expect(selectCanUndoLastSet(store())).toBe(true);
+		tick(20);
+
+		expect(store().undoLastSet()).toBe(true);
+		expect(store().phase).toBe('work');
+		expect(store().running).toBe(true);
+		expect(store().setIndex).toBe(1);
+		expect(selectDisplaySeconds(store())).toBe(18);
+		expect(store().loadInput).toBe('62.5');
+		expect(store().rpeInput).toBe('8');
+		expect(store().undoSnapshot).toBeNull();
+		expect(selectCanUndoLastSet(store())).toBe(false);
+	});
+
+	it('restores a paused set and undoes across exercise rest', () => {
+		const curl = {
+			id: 11,
+			exercise_name: 'Curl',
+			track_mode: 'reps',
+			per_side: false,
+			planned_sets: 3,
+			planned_reps: 10,
+			planned_hold_seconds: 0,
+			rest_set_seconds: 60,
+			rest_rep_seconds: 0,
+			rest_exercise_seconds: 90,
+			target_load_kg: '12.00'
+		};
+		store().loadSet({ ...BARBELL_ROW, planned_sets: 1, rest_exercise_seconds: 45 }, 1);
+		store().startSet();
+		tick(12);
+		store().pauseSet();
+		store().setRpeInput('7');
+		store().captureUndoSnapshot();
+
+		expect(store().advanceAfterLog({ nextExercise: curl, nextSetIndex: 1 })).toBe('rest_exercise');
+		expect(selectCanUndoLastSet(store())).toBe(true);
+
+		expect(store().undoLastSet()).toBe(true);
+		expect(store().phase).toBe('work');
+		expect(store().running).toBe(false);
+		expect(store().sessionExerciseId).toBe(BARBELL_ROW.id);
+		expect(selectDisplaySeconds(store())).toBe(12);
+		expect(store().rpeInput).toBe('7');
+	});
+
+	it('clears undo when Start set begins the next set', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(5);
+		store().captureUndoSnapshot();
+		store().advanceAfterLog();
+		expect(selectCanUndoLastSet(store())).toBe(true);
+		tick(90);
+		store().onRestElapsed('rest_set');
+		expect(selectCanUndoLastSet(store())).toBe(true);
+		store().startSet();
+		expect(store().undoSnapshot).toBeNull();
+		expect(selectCanUndoLastSet(store())).toBe(false);
 	});
 });

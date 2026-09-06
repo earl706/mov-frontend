@@ -22,6 +22,10 @@ import { DEFAULT_WORKOUT_ALARM_SOUND, stopWorkoutAlarm } from '../lib/workoutAla
  * alarm plays until the user taps Start set. Time from the alarm until Start set
  * is added to that next set's rest_seconds (set and exercise rest only).
  * Start set during a countdown skips the remaining rest and begins work.
+ *
+ * Undo: while resting (or on the rest alarm) the user can undo the last Stop set.
+ * That deletes the SetLog on the server and restores work time, inputs, and
+ * running/paused state; post-stop rest is discarded.
  */
 
 const REST_PHASES = new Set(['rest_rep', 'rest_set', 'rest_exercise']);
@@ -64,6 +68,8 @@ const INITIAL = {
 	pendingNextSetIndex: 1,
 	autoLogPending: false,
 	logInFlight: false,
+	undoInFlight: false,
+	undoSnapshot: null,
 
 	alarmActive: false,
 	alarmKind: null,
@@ -161,6 +167,13 @@ export function selectAlarmActive(s) {
 	return Boolean(s.alarmActive);
 }
 
+/** True while a one-step undo of the last logged set is allowed. */
+export function selectCanUndoLastSet(s) {
+	if (!s.undoSnapshot) return false;
+	if (s.phase === 'rest_set' || s.phase === 'rest_exercise') return true;
+	return Boolean(s.alarmActive && (s.alarmKind === 'rest_set' || s.alarmKind === 'rest_exercise'));
+}
+
 export const useWorkoutTimerStore = create(
 	persist(
 		(set, get) => ({
@@ -203,6 +216,7 @@ export const useWorkoutTimerStore = create(
 
 			startSet: () => {
 				const s = get();
+				if (s.undoInFlight) return;
 				if (s.phase === 'work' && s.running) return;
 				stopWorkoutAlarm();
 				if (s.phase === 'rest_exercise') {
@@ -229,7 +243,8 @@ export const useWorkoutTimerStore = create(
 					carriedRestSeconds: carried,
 					pendingNextExercise: null,
 					alarmActive: false,
-					alarmKind: null
+					alarmKind: null,
+					undoSnapshot: null
 				});
 			},
 
@@ -324,6 +339,98 @@ export const useWorkoutTimerStore = create(
 					skipped
 				};
 			},
+
+			/**
+			 * Snapshot the working set before it is logged so rest can be undone once.
+			 */
+			captureUndoSnapshot: () => {
+				const s = get();
+				if (s.phase !== 'work' || s.sessionExerciseId == null) return null;
+				const workSeconds = s.workAccumulated + (s.running ? elapsedSince(s.workStartedAt) : 0);
+				const snapshot = {
+					sessionExerciseId: s.sessionExerciseId,
+					exerciseName: s.exerciseName,
+					trackMode: s.trackMode,
+					perSide: s.perSide,
+					setIndex: s.setIndex,
+					totalSets: s.totalSets,
+					plannedReps: s.plannedReps,
+					plannedHoldSeconds: s.plannedHoldSeconds,
+					restSetSeconds: s.restSetSeconds,
+					restRepSeconds: s.restRepSeconds,
+					restExerciseSeconds: s.restExerciseSeconds,
+					targetLoad: s.targetLoad,
+					workSeconds,
+					wasRunning: Boolean(s.running),
+					repsDone: s.repsDone,
+					loadInput: s.loadInput,
+					rpeInput: s.rpeInput,
+					carriedRestSeconds: s.carriedRestSeconds,
+					restAccumulated: s.restAccumulated
+				};
+				set({ undoSnapshot: snapshot });
+				return snapshot;
+			},
+
+			clearUndoSnapshot: () => set({ undoSnapshot: null }),
+
+			/**
+			 * Rewind to the set captured by `captureUndoSnapshot`. Only valid during
+			 * set/exercise rest or their rest alarms. Discards post-stop rest.
+			 */
+			undoLastSet: (snapshot = null) => {
+				const s = get();
+				const snap = snapshot || s.undoSnapshot;
+				if (!snap) return false;
+				const allowed =
+					s.phase === 'rest_set' ||
+					s.phase === 'rest_exercise' ||
+					Boolean(s.alarmActive && (s.alarmKind === 'rest_set' || s.alarmKind === 'rest_exercise'));
+				if (!allowed) return false;
+				stopWorkoutAlarm();
+				set({
+					sessionExerciseId: snap.sessionExerciseId,
+					exerciseName: snap.exerciseName,
+					trackMode: snap.trackMode,
+					perSide: snap.perSide,
+					setIndex: snap.setIndex,
+					totalSets: snap.totalSets,
+					plannedReps: snap.plannedReps,
+					plannedHoldSeconds: snap.plannedHoldSeconds,
+					restSetSeconds: snap.restSetSeconds,
+					restRepSeconds: snap.restRepSeconds,
+					restExerciseSeconds: snap.restExerciseSeconds,
+					targetLoad: snap.targetLoad,
+					phase: 'work',
+					running: snap.wasRunning,
+					workStartedAt: snap.wasRunning ? nowMs() : null,
+					workAccumulated: snap.workSeconds,
+					restEndAt: null,
+					restStartedAt: null,
+					restAccumulated: snap.restAccumulated,
+					carriedRestSeconds: snap.carriedRestSeconds,
+					repsDone: snap.repsDone,
+					loadInput: snap.loadInput,
+					rpeInput: snap.rpeInput,
+					pendingNextExercise: null,
+					pendingNextSetIndex: 1,
+					autoLogPending: false,
+					alarmActive: false,
+					alarmKind: null,
+					undoSnapshot: null,
+					undoInFlight: false
+				});
+				return true;
+			},
+
+			beginUndo: () => {
+				if (get().undoInFlight) return false;
+				if (!selectCanUndoLastSet(get())) return false;
+				set({ undoInFlight: true });
+				return true;
+			},
+
+			endUndo: () => set({ undoInFlight: false }),
 
 			/** Start the prescribed rest between sets of the same exercise. */
 			beginSetRest: () => {
@@ -420,7 +527,8 @@ export const useWorkoutTimerStore = create(
 					pendingNextExercise: null,
 					autoLogPending: false,
 					alarmActive: false,
-					alarmKind: null
+					alarmKind: null,
+					undoSnapshot: null
 				});
 			},
 
@@ -516,6 +624,8 @@ export const useWorkoutTimerStore = create(
 						get().finishLastSet();
 						return 'done';
 					}
+					// Consuming rest to start the next exercise drops undo.
+					set({ undoSnapshot: null });
 					get().loadSet(next, nextIndex, { carriedRestSeconds: carried });
 					get().startSet();
 					return 'work';
@@ -611,7 +721,8 @@ export const useWorkoutTimerStore = create(
 				rpeInput: s.rpeInput,
 				pendingNextExercise: s.pendingNextExercise,
 				pendingNextSetIndex: s.pendingNextSetIndex,
-				alarmSound: s.alarmSound
+				alarmSound: s.alarmSound,
+				undoSnapshot: s.undoSnapshot
 			})
 		}
 	)

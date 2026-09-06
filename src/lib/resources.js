@@ -117,6 +117,18 @@ export function useLogSet() {
 	});
 }
 
+export function useUnlogSet() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({ sessionId, ...body }) => post(`/workout-sessions/${sessionId}/unlog-set/`, body),
+		onSuccess: (session) => {
+			qc.setQueryData(['workout-sessions', 'active'], { session });
+			invalidateWorkouts(qc);
+		},
+		onError: () => toast.error('Could not undo that set.')
+	});
+}
+
 export function useAdjustSessionExercise() {
 	const qc = useQueryClient();
 	return useMutation({

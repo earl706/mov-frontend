@@ -5,14 +5,12 @@ import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
 	Activity,
-	AlertTriangle,
 	Check,
 	Dumbbell,
 	Feather,
 	Flame,
 	History,
 	LayoutDashboard,
-	Lightbulb,
 	Play,
 	Scale,
 	Timer
@@ -33,11 +31,11 @@ import {
 import { formatDate, formatDurationSeconds } from '../lib/format';
 import { formatDelta, formatWeight, localDateKey } from '../lib/weightFormat';
 import {
+	sessionsApi,
 	useDashboard,
 	useRecentSets,
 	useStartSession,
 	useTrainingHeatmap,
-	useTrainingInsights,
 	useTrainingSeries,
 	useWeightHeatmap,
 	useWeightProfile,
@@ -58,6 +56,7 @@ const HEATMAP_WEEKS = 36;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
 const RECENT_SET_LIMIT = 120;
+const RPE_SESSION_LIMIT = 30;
 
 const chartTooltipStyle = {
 	background: 'var(--surface)',
@@ -154,6 +153,79 @@ function DashAreaChart({ data, dataKey, name, gradientId, tooltipLabel, domain }
 					connectNulls
 					dot={false}
 					activeDot={false}
+				/>
+			</AreaChart>
+		</ResponsiveContainer>
+	);
+}
+
+function RpeSessionTooltip({ active, payload }) {
+	if (!active || !payload?.length) return null;
+	const row = payload[0]?.payload;
+	if (!row) return null;
+	return (
+		<div style={chartTooltipStyle} className="px-2.5 py-2">
+			<p className="text-fg text-xs font-medium">RPE {row.rpe}</p>
+			<p className="text-muted text-[11px]">
+				{row.template_name} · {row.total_sets} set{row.total_sets === 1 ? '' : 's'}
+			</p>
+			{row.date ? (
+				<p className="text-muted text-[11px]">{formatDate(row.date, 'EEE, MMM d')}</p>
+			) : null}
+		</div>
+	);
+}
+
+/** Compact session-RPE area for the dashboard top row (0–10, no X ticks). */
+function RpeSessionChart({ sessions }) {
+	const data = useMemo(() => {
+		const newestFirst = sessions || [];
+		return [...newestFirst].reverse().map((session, index) => ({
+			i: index + 1,
+			date: session.date,
+			rpe: session.perceived_effort != null ? Number(session.perceived_effort) : 0,
+			template_name: session.template_name || 'Workout',
+			total_sets: session.total_sets ?? 0
+		}));
+	}, [sessions]);
+
+	if (!data.length) {
+		return (
+			<p className="text-muted flex h-full items-center text-[10px] leading-snug">
+				Log workouts with session RPE to see your trend.
+			</p>
+		);
+	}
+
+	return (
+		<ResponsiveContainer width="100%" height="100%">
+			<AreaChart data={data} margin={{ top: 1, right: 1, left: 1, bottom: 1 }}>
+				<defs>
+					<linearGradient id="rpeSessionFill" x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+						<stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+					</linearGradient>
+				</defs>
+				<XAxis dataKey="i" hide />
+				<YAxis
+					domain={[0, 10]}
+					ticks={[0, 5, 10]}
+					width={26}
+					tick={{ fill: 'var(--muted)', fontSize: 9 }}
+					axisLine={false}
+					tickLine={false}
+					allowDecimals={false}
+				/>
+				<Tooltip content={<RpeSessionTooltip />} />
+				<Area
+					type="monotone"
+					dataKey="rpe"
+					name="RPE"
+					stroke="var(--primary)"
+					strokeWidth={2}
+					fill="url(#rpeSessionFill)"
+					dot={false}
+					activeDot={{ r: 3, fill: 'var(--primary)' }}
 				/>
 			</AreaChart>
 		</ResponsiveContainer>
@@ -483,7 +555,6 @@ export default function Dashboard() {
 	const navigate = useNavigate();
 	const user = useAuthStore((s) => s.user);
 	const { data, isLoading } = useDashboard();
-	const { data: insights } = useTrainingInsights();
 	const { data: heatmap } = useTrainingHeatmap(HEATMAP_DAYS);
 	const { data: volumeSeries } = useTrainingSeries(CHART_DAYS);
 	const { data: weightProfile } = useWeightProfile();
@@ -496,6 +567,10 @@ export default function Dashboard() {
 	const { data: weightStats } = useWeightStats(weightStatsParams);
 	const { data: weightHeatmap } = useWeightHeatmap(HEATMAP_DAYS);
 	const { data: recentSets } = useRecentSets(RECENT_SET_LIMIT);
+	const { data: rpeSessionsPage } = sessionsApi.useList({
+		status: 'completed',
+		page_size: RPE_SESSION_LIMIT
+	});
 
 	const volumeData = useMemo(
 		() =>
@@ -516,8 +591,8 @@ export default function Dashboard() {
 
 	const { training, weight } = data;
 	const firstName = (user?.full_name || '').split(' ')[0];
-	const hasInsights = Boolean(insights?.insights?.length);
 	const weightUnit = weightProfile?.unit || weightSeries?.unit || weight.unit || 'kg';
+	const rpeSessions = rpeSessionsPage?.results || [];
 
 	return (
 		<div className="lg:-my-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-col lg:overflow-hidden lg:py-2">
@@ -604,27 +679,10 @@ export default function Dashboard() {
 					</div>
 
 					<Card className="flex min-h-0 flex-col overflow-hidden lg:h-full">
-						<CardHeader className="p-1.5 pb-0" title="Insights" />
-						<CardBody className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1.5 pt-0.5">
-							{hasInsights ? (
-								insights.insights.map((insight) => (
-									<div
-										key={insight.type}
-										className="border-line flex items-start gap-1.5 rounded-sm border px-1.5 py-1"
-									>
-										{insight.type === 'recovery' ? (
-											<AlertTriangle size={11} className="text-warning mt-0.5 shrink-0" />
-										) : (
-											<Lightbulb size={11} className="text-primary mt-0.5 shrink-0" />
-										)}
-										<p className="text-fg text-[10px] leading-snug">{insight.message}</p>
-									</div>
-								))
-							) : (
-								<p className="text-muted text-[10px] leading-snug">
-									Insights appear as you log more workouts.
-								</p>
-							)}
+						<CardBody className="min-h-0 flex-1 overflow-hidden p-0!">
+							<div className="h-full min-h-0">
+								<RpeSessionChart sessions={rpeSessions} />
+							</div>
 						</CardBody>
 					</Card>
 
