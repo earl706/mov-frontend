@@ -3,6 +3,22 @@ export function loggedSets(sessionExercise) {
 	return (sessionExercise?.sets || []).filter((set) => !set.skipped).length;
 }
 
+/** Sum of work/rest already written to SetLog rows (includes skipped sets). */
+export function sessionLoggedTiming(sessionOrExercises) {
+	const exercises = Array.isArray(sessionOrExercises)
+		? sessionOrExercises
+		: sessionOrExercises?.exercises || [];
+	let workSeconds = 0;
+	let restSeconds = 0;
+	for (const exercise of exercises) {
+		for (const set of exercise.sets || []) {
+			workSeconds += set.work_seconds || 0;
+			restSeconds += set.rest_seconds || 0;
+		}
+	}
+	return { workSeconds, restSeconds };
+}
+
 export function isExerciseFinished(sessionExercise) {
 	if (!sessionExercise) return true;
 	return sessionExercise.skipped || loggedSets(sessionExercise) >= sessionExercise.planned_sets;

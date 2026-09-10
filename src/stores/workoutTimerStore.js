@@ -60,6 +60,9 @@ const INITIAL = {
 	// Rest already taken before the current set began. Rest between sets ends
 	// before the next set is logged, so it rides along on that set's payload.
 	carriedRestSeconds: 0,
+	// Wall gaps while a set is paused (counts toward Elapsed only, not Workout/Rest).
+	pauseAccumulated: 0,
+	pauseStartedAt: null,
 	repsDone: 0,
 	loadInput: '',
 	rpeInput: '',
@@ -129,9 +132,36 @@ function openRestSeconds(s) {
 	return 0;
 }
 
+function bankOpenPause(s) {
+	if (s.pauseStartedAt == null) {
+		return { pauseAccumulated: s.pauseAccumulated || 0, pauseStartedAt: null };
+	}
+	return {
+		pauseAccumulated: (s.pauseAccumulated || 0) + elapsedSince(s.pauseStartedAt),
+		pauseStartedAt: null
+	};
+}
+
 /** Seconds of work banked so far on the current set, running or paused. */
 export function selectWorkSeconds(s) {
 	return s.workAccumulated + (s.running && s.phase === 'work' ? elapsedSince(s.workStartedAt) : 0);
+}
+
+/**
+ * Rest not yet written to a SetLog: carried into the current set, rep rests,
+ * plus any open set/exercise/post-alarm rest clock.
+ */
+export function selectOpenRestSeconds(s) {
+	return s.carriedRestSeconds + s.restAccumulated + openRestSeconds(s);
+}
+
+/** Pause gaps on the current session (open pause + banked). */
+export function selectPauseSeconds(s) {
+	const open =
+		s.phase === 'work' && !s.running && s.pauseStartedAt != null
+			? elapsedSince(s.pauseStartedAt)
+			: 0;
+	return (s.pauseAccumulated || 0) + open;
 }
 
 /** Seconds left on whichever rest countdown is active, else 0. */
@@ -233,6 +263,10 @@ export const useWorkoutTimerStore = create(
 					s.phase === 'rest_rep'
 						? s.restAccumulated + elapsedSince(s.restStartedAt)
 						: s.restAccumulated;
+				const pauseBanked =
+					s.phase === 'work' && !s.running && s.pauseStartedAt != null
+						? s.pauseAccumulated + elapsedSince(s.pauseStartedAt)
+						: s.pauseAccumulated;
 				set({
 					phase: 'work',
 					running: true,
@@ -241,6 +275,8 @@ export const useWorkoutTimerStore = create(
 					restStartedAt: null,
 					restAccumulated: rested,
 					carriedRestSeconds: carried,
+					pauseAccumulated: pauseBanked,
+					pauseStartedAt: null,
 					pendingNextExercise: null,
 					alarmActive: false,
 					alarmKind: null,
@@ -254,7 +290,8 @@ export const useWorkoutTimerStore = create(
 				set({
 					running: false,
 					workAccumulated: s.workAccumulated + elapsedSince(s.workStartedAt),
-					workStartedAt: null
+					workStartedAt: null,
+					pauseStartedAt: nowMs()
 				});
 			},
 
@@ -418,7 +455,8 @@ export const useWorkoutTimerStore = create(
 					alarmActive: false,
 					alarmKind: null,
 					undoSnapshot: null,
-					undoInFlight: false
+					undoInFlight: false,
+					pauseStartedAt: snap.wasRunning ? null : nowMs()
 				});
 				return true;
 			},
@@ -435,6 +473,7 @@ export const useWorkoutTimerStore = create(
 			/** Start the prescribed rest between sets of the same exercise. */
 			beginSetRest: () => {
 				const s = get();
+				const pause = bankOpenPause(s);
 				stopWorkoutAlarm();
 				if (!s.restSetSeconds) {
 					set({
@@ -447,7 +486,8 @@ export const useWorkoutTimerStore = create(
 						restAccumulated: 0,
 						repsDone: 0,
 						alarmActive: false,
-						alarmKind: null
+						alarmKind: null,
+						...pause
 					});
 					return false;
 				}
@@ -461,7 +501,8 @@ export const useWorkoutTimerStore = create(
 					restStartedAt: nowMs(),
 					restEndAt: nowMs() + s.restSetSeconds * 1000,
 					alarmActive: false,
-					alarmKind: null
+					alarmKind: null,
+					...pause
 				});
 				return true;
 			},
@@ -469,8 +510,10 @@ export const useWorkoutTimerStore = create(
 			/** Rest after the last set of this exercise, then load `nextExercise`. */
 			beginExerciseRest: (nextExercise, nextSetIndex = 1) => {
 				const s = get();
+				const pause = bankOpenPause(s);
 				stopWorkoutAlarm();
 				if (!s.restExerciseSeconds) {
+					set(pause);
 					get().loadSet(nextExercise, nextSetIndex);
 					return false;
 				}
@@ -487,7 +530,8 @@ export const useWorkoutTimerStore = create(
 					pendingNextExercise: snapshotPending(nextExercise),
 					pendingNextSetIndex: nextSetIndex,
 					alarmActive: false,
-					alarmKind: null
+					alarmKind: null,
+					...pause
 				});
 				return true;
 			},
@@ -498,6 +542,7 @@ export const useWorkoutTimerStore = create(
 			 */
 			advanceSet: () => {
 				const s = get();
+				const pause = bankOpenPause(s);
 				set({
 					setIndex: s.setIndex + 1,
 					phase: 'idle',
@@ -508,11 +553,13 @@ export const useWorkoutTimerStore = create(
 					restStartedAt: null,
 					restAccumulated: 0,
 					carriedRestSeconds: 0,
-					repsDone: 0
+					repsDone: 0,
+					...pause
 				});
 			},
 
 			finishLastSet: () => {
+				const pause = bankOpenPause(get());
 				stopWorkoutAlarm();
 				set({
 					phase: 'idle',
@@ -528,7 +575,8 @@ export const useWorkoutTimerStore = create(
 					autoLogPending: false,
 					alarmActive: false,
 					alarmKind: null,
-					undoSnapshot: null
+					undoSnapshot: null,
+					...pause
 				});
 			},
 
@@ -722,7 +770,9 @@ export const useWorkoutTimerStore = create(
 				pendingNextExercise: s.pendingNextExercise,
 				pendingNextSetIndex: s.pendingNextSetIndex,
 				alarmSound: s.alarmSound,
-				undoSnapshot: s.undoSnapshot
+				undoSnapshot: s.undoSnapshot,
+				pauseAccumulated: s.pauseAccumulated,
+				pauseStartedAt: s.pauseStartedAt
 			})
 		}
 	)

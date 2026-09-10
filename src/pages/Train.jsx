@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-	AlertTriangle,
 	Check,
-	Coffee,
 	Dumbbell,
 	Feather,
 	Pause,
@@ -31,7 +29,7 @@ import {
 import { MildBadge } from '../components/workouts/MildBadge';
 import { WorkoutSummary } from '../components/workouts/WorkoutSummary';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
-import { cn } from '../lib/format';
+import { cn, formatDurationCompact } from '../lib/format';
 import { formatTimerDisplay } from '../lib/timerFormat';
 import {
 	routinesApi,
@@ -41,12 +39,15 @@ import {
 	useStartSession,
 	useSuggestedRoutine
 } from '../lib/resources';
-import { isExerciseFinished, loggedSets } from '../lib/workoutSession';
+import { isExerciseFinished, loggedSets, sessionLoggedTiming } from '../lib/workoutSession';
 import {
 	selectCanUndoLastSet,
 	selectDisplaySeconds,
+	selectOpenRestSeconds,
+	selectPauseSeconds,
 	selectRestRemaining,
 	selectResting,
+	selectWorkSeconds,
 	useWorkoutTimerStore
 } from '../stores/workoutTimerStore';
 
@@ -283,10 +284,43 @@ function TimerRings({
 }
 
 // -----------------------------------------------------------------------------
+// Session totals under the set rings
+// -----------------------------------------------------------------------------
+
+function SessionTimingTotals({ session }) {
+	const logged = useMemo(() => sessionLoggedTiming(session), [session]);
+	const openWork = useWorkoutTimerStore(selectWorkSeconds);
+	const openRest = useWorkoutTimerStore(selectOpenRestSeconds);
+	const pauseSeconds = useWorkoutTimerStore(selectPauseSeconds);
+	const workoutSeconds = logged.workSeconds + openWork;
+	const restSeconds = logged.restSeconds + openRest;
+	const elapsedSeconds = workoutSeconds + restSeconds + pauseSeconds;
+
+	const rows = [
+		{ label: 'Elapsed', value: elapsedSeconds },
+		{ label: 'Workout', value: workoutSeconds },
+		{ label: 'Rest', value: restSeconds }
+	];
+
+	return (
+		<div className="grid grid-cols-3 gap-2 text-center">
+			{rows.map((row) => (
+				<div key={row.label} className="min-w-0">
+					<p className="text-muted text-[11px] font-medium tracking-wide uppercase">{row.label}</p>
+					<p className="text-fg mt-0.5 font-mono text-sm font-semibold tabular-nums sm:text-base">
+						{formatDurationCompact(row.value)}
+					</p>
+				</div>
+			))}
+		</div>
+	);
+}
+
+// -----------------------------------------------------------------------------
 // The set timer
 // -----------------------------------------------------------------------------
 
-function SetTimer({ sessionExercise, totals, onSetLogged }) {
+function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 	const { finishSet, undoLastSet, logging, undoing } = useWorkoutAutoAdvance();
 	const timer = useWorkoutTimerStore();
 	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
@@ -304,15 +338,18 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 	const restPct = restTotal > 0 ? (restRemaining / restTotal) * 100 : 0;
 	const ringTone = alarmActive ? 'danger' : resting ? 'success' : 'primary';
 
-	// Re-render every second while a clock is moving.
-	const ticking = timer.running || timer.restEndAt != null;
+	// Re-render while work, rest countdown, post-alarm wait, or pause is open.
+	const ticking =
+		timer.running ||
+		timer.restEndAt != null ||
+		timer.restStartedAt != null ||
+		(timer.phase === 'work' && !timer.running && timer.pauseStartedAt != null);
 	useEffect(() => {
 		if (!ticking) return undefined;
 		const id = window.setInterval(() => useWorkoutTimerStore.setState({}), 500);
 		return () => window.clearInterval(id);
 	}, [ticking]);
 
-	const isHold = timer.trackMode === 'hold';
 	const headerExercise =
 		timer.phase === 'rest_exercise' && timer.pendingNextExercise
 			? timer.pendingNextExercise
@@ -358,16 +395,6 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 		return () => window.removeEventListener('keydown', onKeyDown);
 	}, [logging, undoing, finishSet, onSetLogged]);
 
-	const PhaseIcon = alarmActive ? AlertTriangle : resting ? Coffee : working ? Timer : Play;
-
-	const badgeTone = alarmActive
-		? 'danger'
-		: resting
-			? 'success'
-			: timer.running
-				? 'primary'
-				: 'neutral';
-
 	return (
 		<>
 			<Card>
@@ -380,7 +407,7 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 					}
 				/>
 				<CardBody className="space-y-4">
-					<div className="flex justify-center">
+					<div className="flex flex-col items-center gap-3">
 						<TimerRings
 							sessionExercise={sessionExercise}
 							totals={totals}
@@ -399,6 +426,7 @@ function SetTimer({ sessionExercise, totals, onSetLogged }) {
 								{formatTimerDisplay(displaySeconds)}
 							</p>
 						</TimerRings>
+						<SessionTimingTotals session={session} />
 					</div>
 
 					<div className="space-y-2">
@@ -676,7 +704,12 @@ export default function TrainPage() {
 
 			<div className="space-y-4">
 				{current ? (
-					<SetTimer sessionExercise={current} totals={totals} onSetLogged={refetch} />
+					<SetTimer
+						session={session}
+						sessionExercise={current}
+						totals={totals}
+						onSetLogged={refetch}
+					/>
 				) : (
 					<EmptyState
 						icon={Check}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Activity, Dumbbell, Flame, History as HistoryIcon, Trash2 } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
 import { SetWorkRestBarChart } from '../components/analytics/SetWorkRestBarChart';

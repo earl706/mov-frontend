@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	selectCanUndoLastSet,
 	selectDisplaySeconds,
+	selectPauseSeconds,
 	selectRestRemaining,
 	selectResting,
 	selectTimerRunning,
+	selectWorkSeconds,
 	useWorkoutTimerStore
 } from './workoutTimerStore';
 
@@ -504,5 +506,19 @@ describe('workoutTimerStore', () => {
 		store().startSet();
 		expect(store().undoSnapshot).toBeNull();
 		expect(selectCanUndoLastSet(store())).toBe(false);
+	});
+
+	it('banks pause gaps for session elapsed without adding to work', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(10);
+		store().pauseSet();
+		tick(7);
+		expect(selectWorkSeconds(store())).toBe(10);
+		expect(selectPauseSeconds(store())).toBe(7);
+		store().startSet();
+		tick(3);
+		expect(selectWorkSeconds(store())).toBe(13);
+		expect(selectPauseSeconds(store())).toBe(7);
 	});
 });
