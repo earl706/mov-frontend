@@ -3,6 +3,65 @@ export function loggedSets(sessionExercise) {
 	return (sessionExercise?.sets || []).filter((set) => !set.skipped).length;
 }
 
+const SET_STATUS_LABEL = {
+	completed: 'completed',
+	current: 'current',
+	upcoming: 'upcoming',
+	skipped: 'skipped'
+};
+
+/**
+ * Planned set slots across a session, in exercise order, for progress markers.
+ * `currentExerciseId` + `currentSetIndex` mark the active cursor (timer set).
+ */
+export function sessionSetMarkers(
+	exercises,
+	{ currentExerciseId = null, currentSetIndex = null } = {}
+) {
+	const markers = [];
+	let globalIndex = 0;
+
+	for (const exercise of exercises || []) {
+		const planned = Math.max(0, exercise.planned_sets || 0);
+		if (!planned) continue;
+
+		const byIndex = new Map((exercise.sets || []).map((set) => [set.index, set]));
+
+		for (let setIndex = 1; setIndex <= planned; setIndex += 1) {
+			globalIndex += 1;
+			const log = byIndex.get(setIndex);
+			let status = 'upcoming';
+
+			if (exercise.skipped) {
+				status = 'skipped';
+			} else if (log?.skipped) {
+				status = 'skipped';
+			} else if (log) {
+				status = 'completed';
+			} else if (
+				currentExerciseId != null &&
+				exercise.id === currentExerciseId &&
+				setIndex === currentSetIndex
+			) {
+				status = 'current';
+			}
+
+			markers.push({
+				key: `${exercise.id}-${setIndex}`,
+				exerciseId: exercise.id,
+				exerciseName: exercise.exercise_name,
+				setIndex,
+				globalIndex,
+				status,
+				label: SET_STATUS_LABEL[status],
+				groupStart: setIndex === 1
+			});
+		}
+	}
+
+	return markers;
+}
+
 /** Sum of work/rest already written to SetLog rows (includes skipped sets). */
 export function sessionLoggedTiming(sessionOrExercises) {
 	const exercises = Array.isArray(sessionOrExercises)

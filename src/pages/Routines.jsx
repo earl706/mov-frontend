@@ -185,6 +185,7 @@ export function RoutinesPage() {
 											)
 										}
 										loading={start.isPending}
+										title="Start Mild — half sets (per-side kept even)"
 									>
 										<Feather size={15} />
 										Start Mild
@@ -360,6 +361,7 @@ function RoutineEditor({ routine }) {
 								)
 							}
 							loading={start.isPending}
+							title="Start Mild — half sets (per-side kept even)"
 						>
 							<Feather size={16} />
 							Start Mild

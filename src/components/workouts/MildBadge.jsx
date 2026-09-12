@@ -9,8 +9,8 @@ export function MildBadge({ className }) {
 		<Badge
 			tone="accent"
 			className={cn('px-1.5 py-0.5', className)}
-			aria-label="Mild session"
-			title="Mild — half sets"
+			aria-label="Mild session — half sets, per-side kept even"
+			title="Mild — half sets (per-side kept even)"
 		>
 			<Feather size={12} aria-hidden />
 		</Badge>

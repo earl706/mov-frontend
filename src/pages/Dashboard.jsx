@@ -291,7 +291,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 					}
 					loading={start.isPending}
 					aria-label={`Start Mild ${suggested.name}`}
-					title="Start Mild — half sets"
+					title="Start Mild — half sets (per-side kept even)"
 				>
 					<Feather size={12} />
 					Mild

@@ -39,7 +39,12 @@ import {
 	useStartSession,
 	useSuggestedRoutine
 } from '../lib/resources';
-import { isExerciseFinished, loggedSets, sessionLoggedTiming } from '../lib/workoutSession';
+import {
+	isExerciseFinished,
+	loggedSets,
+	sessionLoggedTiming,
+	sessionSetMarkers
+} from '../lib/workoutSession';
 import {
 	selectCanUndoLastSet,
 	selectDisplaySeconds,
@@ -133,6 +138,7 @@ function RoutinePicker() {
 								variant="secondary"
 								onClick={() => start.mutate({ template: suggested.template.id, mild: true })}
 								loading={start.isPending}
+								title="Start Mild — half sets (per-side kept even)"
 							>
 								<Feather size={16} />
 								Start Mild
@@ -172,6 +178,7 @@ function RoutinePicker() {
 									variant="ghost"
 									onClick={() => start.mutate({ template: routine.id, mild: true })}
 									loading={start.isPending}
+									title="Start Mild — half sets (per-side kept even)"
 								>
 									<Feather size={14} />
 									Start Mild
@@ -217,6 +224,46 @@ function RingArc({ cx, cy, r, stroke, pct, color }) {
 				}}
 			/>
 		</>
+	);
+}
+
+const SET_DOT_CLASS = {
+	completed: 'bg-success',
+	current: 'bg-primary ring-primary/35 scale-125 ring-2',
+	upcoming: 'bg-surface-2 ring-line ring-1',
+	skipped: 'bg-danger/35 ring-danger/50 ring-1'
+};
+
+/** Display-only dots for every planned set in the session (grouped by exercise). */
+function SessionSetMarkers({ exercises, currentExerciseId, currentSetIndex }) {
+	const markers = useMemo(
+		() => sessionSetMarkers(exercises, { currentExerciseId, currentSetIndex }),
+		[exercises, currentExerciseId, currentSetIndex]
+	);
+
+	if (!markers.length) return null;
+
+	return (
+		<ul
+			className="flex max-w-xs flex-wrap items-center justify-center gap-y-1.5 sm:max-w-sm"
+			aria-label="Session set progress"
+		>
+			{markers.map((marker) => (
+				<li
+					key={marker.key}
+					className={cn('flex items-center', marker.groupStart && marker.globalIndex > 1 && 'ml-2')}
+				>
+					<span
+						className={cn(
+							'mx-0.5 inline-block size-1.5 rounded-full sm:size-2',
+							SET_DOT_CLASS[marker.status]
+						)}
+						title={`Set ${marker.globalIndex} · ${marker.label}`}
+						aria-label={`Set ${marker.globalIndex} · ${marker.label}`}
+					/>
+				</li>
+			))}
+		</ul>
 	);
 }
 
@@ -355,6 +402,15 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 			? timer.pendingNextExercise
 			: sessionExercise;
 
+	const markerExerciseId =
+		timer.phase === 'rest_exercise' && timer.pendingNextExercise
+			? timer.pendingNextExercise.id
+			: sessionExercise.id;
+	const markerSetIndex =
+		timer.phase === 'rest_exercise' && timer.pendingNextExercise
+			? timer.pendingNextSetIndex || 1
+			: timer.setIndex;
+
 	const submitSet = async ({ skipped = false } = {}) => {
 		await finishSet({ skipped });
 		onSetLogged?.();
@@ -408,6 +464,11 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 				/>
 				<CardBody className="space-y-4">
 					<div className="flex flex-col items-center gap-3">
+						<SessionSetMarkers
+							exercises={session?.exercises || []}
+							currentExerciseId={markerExerciseId}
+							currentSetIndex={markerSetIndex}
+						/>
 						<TimerRings
 							sessionExercise={sessionExercise}
 							totals={totals}
