@@ -46,6 +46,7 @@ import {
 	sessionSetMarkers
 } from '../lib/workoutSession';
 import {
+	selectCanRevertLastRest,
 	selectCanUndoLastSet,
 	selectDisplaySeconds,
 	selectOpenRestSeconds,
@@ -374,7 +375,9 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 	const restRemaining = useWorkoutTimerStore(selectRestRemaining);
 	const resting = useWorkoutTimerStore(selectResting);
 	const undoAvailable = useWorkoutTimerStore(selectCanUndoLastSet);
+	const revertAvailable = useWorkoutTimerStore(selectCanRevertLastRest);
 	const [undoOpen, setUndoOpen] = useState(false);
+	const [revertOpen, setRevertOpen] = useState(false);
 	const alarmActive = timer.alarmActive;
 	const working = timer.phase === 'work';
 	const restOrAlarm = resting || alarmActive;
@@ -416,10 +419,14 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 		onSetLogged?.();
 	};
 
-	const confirmUndo = async () => {
-		await undoLastSet();
+	const confirmUndo = () => {
+		undoLastSet();
 		setUndoOpen(false);
-		onSetLogged?.();
+	};
+
+	const confirmRevert = () => {
+		useWorkoutTimerStore.getState().revertLastRest();
+		setRevertOpen(false);
 	};
 
 	// Space toggles Start set / Stop set (ignored while typing in fields).
@@ -576,18 +583,26 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 								)}
 							</AnimatePresence>
 						</div>
-						{undoAvailable && (
+						<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 							<Button
 								variant="ghost"
 								onClick={() => setUndoOpen(true)}
-								loading={undoing}
-								disabled={logging}
+								disabled={!undoAvailable || logging}
 								className="h-10 w-full justify-center"
 							>
 								<RotateCcw size={16} />
 								Undo last set
 							</Button>
-						)}
+							<Button
+								variant="ghost"
+								onClick={() => setRevertOpen(true)}
+								disabled={!revertAvailable || logging}
+								className="h-10 w-full justify-center"
+							>
+								<RotateCcw size={16} />
+								Undo last rest
+							</Button>
+						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -645,8 +660,28 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 				}
 			>
 				<p className="text-muted text-sm">
-					Removes the set you just logged and returns you to that set with the same work time, load,
-					and RPE. Rest time since stopping is discarded.
+					Restarts that set at 00:00 with the same load and RPE. The logged set stays until you Stop
+					again (which overwrites it). Rest time since stopping is discarded.
+				</p>
+			</Modal>
+
+			<Modal
+				open={revertOpen}
+				onClose={() => setRevertOpen(false)}
+				title="Undo last rest?"
+				size="sm"
+				footer={
+					<>
+						<Button variant="ghost" onClick={() => setRevertOpen(false)}>
+							Keep going
+						</Button>
+						<Button onClick={confirmRevert}>Undo last rest</Button>
+					</>
+				}
+			>
+				<p className="text-muted text-sm">
+					Discards this set&apos;s unlogged work time, reps, and pause, and restarts the last rest
+					from the beginning. Sets you already logged stay saved.
 				</p>
 			</Modal>
 		</>
@@ -680,8 +715,12 @@ export default function TrainPage() {
 
 	const exercises = useMemo(() => session?.exercises || [], [session]);
 
-	/** The exercise the timer should be pointing at right now. */
-	const current = useMemo(() => exercises.find((e) => !isExerciseFinished(e)) || null, [exercises]);
+	/** Prefer the timer's exercise so undo/rewind can reopen an already-logged set. */
+	const current = useMemo(() => {
+		const fromTimer = exercises.find((e) => e.id === storedExerciseId);
+		if (fromTimer && !fromTimer.skipped) return fromTimer;
+		return exercises.find((e) => !isExerciseFinished(e)) || null;
+	}, [exercises, storedExerciseId]);
 
 	// Keep the timer's prescription in sync with the server's view of progress.
 	// Do not clobber an in-progress set or rest countdown.

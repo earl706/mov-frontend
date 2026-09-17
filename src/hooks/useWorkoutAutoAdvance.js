@@ -1,18 +1,17 @@
 import { useCallback } from 'react';
 
 import { loggedSets, nextUnfinishedExercise } from '../lib/workoutSession';
-import { useActiveSession, useLogSet, useUnlogSet } from '../lib/resources';
+import { useActiveSession, useLogSet } from '../lib/resources';
 import { selectCanUndoLastSet, useWorkoutTimerStore } from '../stores/workoutTimerStore';
 
 /**
  * Logs the current set and advances the continuous timer (rest → next set,
  * or rest-between-exercises → next exercise, or idle when the plan is done).
- * Also supports one-step undo of the last Stop set while resting.
+ * Undo last set/rest is timer-local (stacks); Stop overwrites the same SetLog.
  */
 export function useWorkoutAutoAdvance() {
 	const logSet = useLogSet();
-	const unlogSet = useUnlogSet();
-	const { data, refetch } = useActiveSession();
+	const { data } = useActiveSession();
 	const session = data?.session || null;
 	const canUndo = useWorkoutTimerStore(selectCanUndoLastSet);
 
@@ -53,31 +52,15 @@ export function useWorkoutAutoAdvance() {
 		[logSet, session]
 	);
 
-	const undoLastSet = useCallback(async () => {
-		const timer = useWorkoutTimerStore.getState();
-		const snap = timer.undoSnapshot;
-		if (!snap || !session || !timer.beginUndo()) return false;
-
-		try {
-			await unlogSet.mutateAsync({
-				sessionId: session.id,
-				session_exercise: snap.sessionExerciseId,
-				index: snap.setIndex
-			});
-			const ok = useWorkoutTimerStore.getState().undoLastSet(snap);
-			await refetch();
-			return ok;
-		} catch (err) {
-			useWorkoutTimerStore.getState().endUndo();
-			throw err;
-		}
-	}, [session, unlogSet, refetch]);
+	const undoLastSet = useCallback(() => {
+		return useWorkoutTimerStore.getState().undoLastSet();
+	}, []);
 
 	return {
 		finishSet,
 		undoLastSet,
 		logging: logSet.isPending,
-		undoing: unlogSet.isPending,
+		undoing: false,
 		canUndo,
 		session
 	};

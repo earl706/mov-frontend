@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	selectCanRevertLastRest,
 	selectCanUndoLastSet,
 	selectDisplaySeconds,
 	selectPauseSeconds,
@@ -437,7 +438,7 @@ describe('workoutTimerStore', () => {
 		expect(store().running).toBe(false);
 	});
 
-	it('captures an undo snapshot and restores work during set rest', () => {
+	it('captures an undo snapshot and restarts the set at 00:00 during set rest', () => {
 		store().loadSet(BARBELL_ROW, 1);
 		store().startSet();
 		tick(18);
@@ -454,14 +455,15 @@ describe('workoutTimerStore', () => {
 		expect(store().phase).toBe('work');
 		expect(store().running).toBe(true);
 		expect(store().setIndex).toBe(1);
-		expect(selectDisplaySeconds(store())).toBe(18);
+		expect(selectDisplaySeconds(store())).toBe(0);
+		expect(store().repsDone).toBe(0);
 		expect(store().loadInput).toBe('62.5');
 		expect(store().rpeInput).toBe('8');
-		expect(store().undoSnapshot).toBeNull();
+		expect(store().setUndoStack).toEqual([]);
 		expect(selectCanUndoLastSet(store())).toBe(false);
 	});
 
-	it('restores a paused set and undoes across exercise rest', () => {
+	it('restarts a paused set at 00:00 running and undoes across exercise rest', () => {
 		const curl = {
 			id: 11,
 			exercise_name: 'Curl',
@@ -487,13 +489,13 @@ describe('workoutTimerStore', () => {
 
 		expect(store().undoLastSet()).toBe(true);
 		expect(store().phase).toBe('work');
-		expect(store().running).toBe(false);
+		expect(store().running).toBe(true);
 		expect(store().sessionExerciseId).toBe(BARBELL_ROW.id);
-		expect(selectDisplaySeconds(store())).toBe(12);
+		expect(selectDisplaySeconds(store())).toBe(0);
 		expect(store().rpeInput).toBe('7');
 	});
 
-	it('clears undo when Start set begins the next set', () => {
+	it('disables undo last set after leaving rest and enables undo last rest', () => {
 		store().loadSet(BARBELL_ROW, 1);
 		store().startSet();
 		tick(5);
@@ -502,10 +504,124 @@ describe('workoutTimerStore', () => {
 		expect(selectCanUndoLastSet(store())).toBe(true);
 		tick(90);
 		store().onRestElapsed('rest_set');
-		expect(selectCanUndoLastSet(store())).toBe(true);
-		store().startSet();
-		expect(store().undoSnapshot).toBeNull();
 		expect(selectCanUndoLastSet(store())).toBe(false);
+		expect(selectCanRevertLastRest(store())).toBe(true);
+		store().startSet();
+		expect(store().setUndoStack).toHaveLength(1);
+		expect(selectCanUndoLastSet(store())).toBe(false);
+		expect(selectCanRevertLastRest(store())).toBe(true);
+	});
+
+	it('restarts the full set rest from idle wait, then undoes that set', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(5);
+		store().captureUndoSnapshot();
+		expect(store().advanceAfterLog()).toBe('rest_set');
+		tick(40);
+		expect(selectRestRemaining(store())).toBe(50);
+		store().onRestElapsed('rest_set');
+		expect(selectCanRevertLastRest(store())).toBe(true);
+
+		expect(store().revertLastRest()).toBe(true);
+		expect(store().phase).toBe('rest_set');
+		expect(selectRestRemaining(store())).toBe(90);
+		expect(store().setIndex).toBe(2);
+		expect(selectCanRevertLastRest(store())).toBe(false);
+		expect(selectCanUndoLastSet(store())).toBe(true);
+
+		expect(store().undoLastSet()).toBe(true);
+		expect(store().phase).toBe('work');
+		expect(store().setIndex).toBe(1);
+		expect(selectDisplaySeconds(store())).toBe(0);
+		expect(selectCanRevertLastRest(store())).toBe(false);
+	});
+
+	it('restarts the full set rest from an in-progress next set', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(5);
+		store().captureUndoSnapshot();
+		expect(store().advanceAfterLog()).toBe('rest_set');
+		store().onRestElapsed('rest_set');
+		store().startSet();
+		tick(8);
+		doReps(2);
+		store().pauseSet();
+		expect(selectCanRevertLastRest(store())).toBe(true);
+
+		expect(store().revertLastRest()).toBe(true);
+		expect(store().phase).toBe('rest_set');
+		expect(selectRestRemaining(store())).toBe(90);
+		expect(store().workAccumulated).toBe(0);
+		expect(store().repsDone).toBe(0);
+		expect(store().pauseStartedAt).toBeNull();
+		expect(store().setIndex).toBe(2);
+		expect(selectCanUndoLastSet(store())).toBe(true);
+	});
+
+	it('rewinds rest then set then earlier rest across two logged sets', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(5);
+		store().captureUndoSnapshot();
+		store().advanceAfterLog();
+		store().onRestElapsed('rest_set');
+		store().startSet();
+		tick(6);
+		store().captureUndoSnapshot();
+		expect(store().advanceAfterLog()).toBe('rest_set');
+		expect(store().setIndex).toBe(3);
+		expect(selectCanUndoLastSet(store())).toBe(true);
+
+		expect(store().undoLastSet()).toBe(true);
+		expect(store().setIndex).toBe(2);
+		expect(store().phase).toBe('work');
+		expect(selectCanRevertLastRest(store())).toBe(true);
+
+		expect(store().revertLastRest()).toBe(true);
+		expect(store().phase).toBe('rest_set');
+		expect(store().setIndex).toBe(2);
+		expect(selectRestRemaining(store())).toBe(90);
+		expect(selectCanUndoLastSet(store())).toBe(true);
+
+		expect(store().undoLastSet()).toBe(true);
+		expect(store().setIndex).toBe(1);
+		expect(store().phase).toBe('work');
+		expect(selectCanRevertLastRest(store())).toBe(false);
+	});
+
+	it('restarts full exercise rest after the next exercise has begun', () => {
+		const curl = {
+			id: 11,
+			exercise_name: 'Curl',
+			track_mode: 'reps',
+			per_side: false,
+			planned_sets: 3,
+			planned_reps: 10,
+			planned_hold_seconds: 0,
+			rest_set_seconds: 60,
+			rest_rep_seconds: 0,
+			rest_exercise_seconds: 90,
+			target_load_kg: '12.00'
+		};
+		store().loadSet({ ...BARBELL_ROW, planned_sets: 1, rest_exercise_seconds: 45 }, 1);
+		store().startSet();
+		tick(6);
+		store().captureUndoSnapshot();
+		expect(store().advanceAfterLog({ nextExercise: curl, nextSetIndex: 1 })).toBe('rest_exercise');
+		store().onRestElapsed('rest_exercise');
+		store().startSet();
+		tick(4);
+
+		expect(store().sessionExerciseId).toBe(curl.id);
+		expect(store().revertLastRest()).toBe(true);
+		expect(store().phase).toBe('rest_exercise');
+		expect(store().sessionExerciseId).toBe(BARBELL_ROW.id);
+		expect(store().pendingNextExercise.id).toBe(curl.id);
+		expect(selectRestRemaining(store())).toBe(45);
+		expect(store().workAccumulated).toBe(0);
+		expect(selectCanUndoLastSet(store())).toBe(true);
 	});
 
 	it('banks pause gaps for session elapsed without adding to work', () => {
