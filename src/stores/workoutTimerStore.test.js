@@ -436,6 +436,7 @@ describe('workoutTimerStore', () => {
 		expect(store().advanceAfterLog({})).toBe('done');
 		expect(store().phase).toBe('idle');
 		expect(store().running).toBe(false);
+		expect(store().workoutComplete).toBe(true);
 	});
 
 	it('captures an undo snapshot and restarts the set at 00:00 during set rest', () => {

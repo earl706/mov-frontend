@@ -3,6 +3,13 @@ export function loggedSets(sessionExercise) {
 	return (sessionExercise?.sets || []).filter((set) => !set.skipped).length;
 }
 
+/** Planned slots that already have a log row, including skipped sets. */
+export function filledSets(sessionExercise) {
+	return (sessionExercise?.sets || []).length;
+}
+
+const TIMER_HOLDING_PHASES = new Set(['work', 'rest_rep', 'rest_set', 'rest_exercise']);
+
 const SET_STATUS_LABEL = {
 	completed: 'completed',
 	current: 'current',
@@ -80,7 +87,27 @@ export function sessionLoggedTiming(sessionOrExercises) {
 
 export function isExerciseFinished(sessionExercise) {
 	if (!sessionExercise) return true;
-	return sessionExercise.skipped || loggedSets(sessionExercise) >= sessionExercise.planned_sets;
+	if (sessionExercise.skipped) return true;
+	return filledSets(sessionExercise) >= sessionExercise.planned_sets;
+}
+
+/**
+ * Exercise the Train timer should show. Prefers the timer cursor so undo/rewind
+ * can reopen a just-logged set, but yields null once the plan is done and the
+ * timer is idle so Finish workout can appear.
+ */
+export function selectActiveSessionExercise(
+	exercises,
+	{ sessionExerciseId = null, phase = 'idle', workoutComplete = false } = {}
+) {
+	if (workoutComplete) return null;
+	const list = exercises || [];
+	const fromTimer = list.find((entry) => entry.id === sessionExerciseId);
+	const holding = TIMER_HOLDING_PHASES.has(phase);
+	if (fromTimer && !fromTimer.skipped && (holding || !isExerciseFinished(fromTimer))) {
+		return fromTimer;
+	}
+	return list.find((entry) => !isExerciseFinished(entry)) || null;
 }
 
 export function nextUnfinishedExercise(exercises, afterId) {

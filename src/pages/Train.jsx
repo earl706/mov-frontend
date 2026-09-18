@@ -40,8 +40,10 @@ import {
 	useSuggestedRoutine
 } from '../lib/resources';
 import {
+	filledSets,
 	isExerciseFinished,
 	loggedSets,
+	selectActiveSessionExercise,
 	sessionLoggedTiming,
 	sessionSetMarkers
 } from '../lib/workoutSession';
@@ -707,6 +709,8 @@ export default function TrainPage() {
 	const loadSet = useWorkoutTimerStore((s) => s.loadSet);
 	const storedSessionId = useWorkoutTimerStore((s) => s.sessionId);
 	const storedExerciseId = useWorkoutTimerStore((s) => s.sessionExerciseId);
+	const storedPhase = useWorkoutTimerStore((s) => s.phase);
+	const workoutComplete = useWorkoutTimerStore((s) => Boolean(s.workoutComplete));
 
 	useEffect(() => {
 		if (session) attachSession({ id: session.id, name: session.template_name });
@@ -715,23 +719,31 @@ export default function TrainPage() {
 
 	const exercises = useMemo(() => session?.exercises || [], [session]);
 
-	/** Prefer the timer's exercise so undo/rewind can reopen an already-logged set. */
-	const current = useMemo(() => {
-		const fromTimer = exercises.find((e) => e.id === storedExerciseId);
-		if (fromTimer && !fromTimer.skipped) return fromTimer;
-		return exercises.find((e) => !isExerciseFinished(e)) || null;
-	}, [exercises, storedExerciseId]);
+	const current = useMemo(
+		() =>
+			selectActiveSessionExercise(exercises, {
+				sessionExerciseId: storedExerciseId,
+				phase: storedPhase,
+				workoutComplete
+			}),
+		[exercises, storedExerciseId, storedPhase, workoutComplete]
+	);
+
+	useEffect(() => {
+		if (workoutComplete) setFinishOpen(true);
+	}, [workoutComplete]);
 
 	// Keep the timer's prescription in sync with the server's view of progress.
-	// Do not clobber an in-progress set or rest countdown.
+	// Do not clobber an in-progress set or rest countdown, or invent a set past the plan.
 	useEffect(() => {
-		if (!current) return;
+		if (!current || workoutComplete || isExerciseFinished(current)) return;
 		const store = useWorkoutTimerStore.getState();
 		if (store.phase !== 'idle') return;
-		const nextIndex = loggedSets(current) + 1;
+		const nextIndex = filledSets(current) + 1;
+		if (nextIndex > current.planned_sets) return;
 		const sameSet = store.sessionExerciseId === current.id && store.setIndex === nextIndex;
 		if (!sameSet) loadSet(current, nextIndex);
-	}, [current, storedExerciseId, loadSet]);
+	}, [current, storedExerciseId, loadSet, workoutComplete]);
 
 	const totals = useMemo(() => {
 		const planned = exercises.reduce((sum, e) => (e.skipped ? sum : sum + e.planned_sets), 0);

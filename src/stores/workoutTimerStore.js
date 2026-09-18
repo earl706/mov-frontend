@@ -80,7 +80,8 @@ const INITIAL = {
 
 	alarmActive: false,
 	alarmKind: null,
-	alarmSound: DEFAULT_WORKOUT_ALARM_SOUND
+	alarmSound: DEFAULT_WORKOUT_ALARM_SOUND,
+	workoutComplete: false
 };
 
 function nowMs() {
@@ -280,7 +281,8 @@ export const useWorkoutTimerStore = create(
 					pendingNextSetIndex: 1,
 					autoLogPending: false,
 					alarmActive: Boolean(options.alarmKind),
-					alarmKind: options.alarmKind ?? null
+					alarmKind: options.alarmKind ?? null,
+					workoutComplete: false
 				});
 			},
 
@@ -669,6 +671,7 @@ export const useWorkoutTimerStore = create(
 					alarmKind: null,
 					setUndoStack: [],
 					restRevertStack: [],
+					workoutComplete: true,
 					...pause
 				});
 			},
@@ -867,7 +870,8 @@ export const useWorkoutTimerStore = create(
 				setUndoStack: s.setUndoStack,
 				restRevertStack: s.restRevertStack,
 				pauseAccumulated: s.pauseAccumulated,
-				pauseStartedAt: s.pauseStartedAt
+				pauseStartedAt: s.pauseStartedAt,
+				workoutComplete: s.workoutComplete
 			})
 		}
 	)
