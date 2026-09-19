@@ -58,6 +58,21 @@ export function useRecentSets(limit = 30) {
 	});
 }
 
+export function useRecentSessions(limit = 30) {
+	return useQuery({
+		queryKey: ['training', 'recent-sessions', limit],
+		queryFn: () => get('/workout-sessions/recent-sessions/', { params: { limit } })
+	});
+}
+
+export function useRoutineSessionAverage(sessionId) {
+	return useQuery({
+		queryKey: ['workout-sessions', 'routine-average', sessionId],
+		queryFn: () => get(`/workout-sessions/${sessionId}/routine-average/`),
+		enabled: sessionId != null
+	});
+}
+
 export function useSuggestedRoutine() {
 	const localDate = useLocalCalendarDate();
 	return useQuery({

@@ -20,38 +20,77 @@ const tooltipStyle = {
 	fontSize: 12
 };
 
+const AVG_WORK = 'color-mix(in srgb, var(--primary) 42%, var(--surface-2))';
+const AVG_REST = 'color-mix(in srgb, var(--success) 42%, var(--surface-2))';
+
 function SetWorkRestTooltip({ active, payload }) {
 	if (!active || !payload?.length) return null;
 	const row = payload[0]?.payload;
 	if (!row || row.is_gap) return null;
 
 	const dateLabel = row.session_date ? formatDate(row.session_date, 'EEE, MMM d') : '';
-	const sessionLabel = row.template_name ? `${row.template_name} · ${dateLabel}` : dateLabel;
+	const sessionLabel = row.is_session
+		? dateLabel
+		: row.template_name
+			? `${row.template_name} · ${dateLabel}`
+			: dateLabel;
+	const compare = row.avg_work != null || row.avg_rest != null;
 
 	return (
 		<div style={tooltipStyle} className="px-2.5 py-2">
-			<p className="text-fg text-xs font-medium">
-				{row.exercise_name} · set {row.set_index}
-			</p>
+			{row.is_session ? (
+				<p className="text-fg text-xs font-medium">{row.template_name || 'Workout'}</p>
+			) : (
+				<p className="text-fg text-xs font-medium">
+					{row.exercise_name} · set {row.set_index}
+				</p>
+			)}
 			{sessionLabel && <p className="text-muted text-[11px]">{sessionLabel}</p>}
 			<p className="text-muted mt-1 text-[11px]">
-				Work {formatDurationSeconds(row.work_seconds ?? row.work)} · Rest{' '}
-				{formatDurationSeconds(row.rest_seconds ?? row.rest)}
+				{compare ? 'Current · ' : ''}Work {formatDurationSeconds(row.work_seconds ?? row.work)} ·
+				Rest {formatDurationSeconds(row.rest_seconds ?? row.rest)}
 			</p>
+			{compare ? (
+				<p className="text-muted text-[11px]">
+					Average · Work {formatDurationSeconds(row.avg_work ?? 0)} · Rest{' '}
+					{formatDurationSeconds(row.avg_rest ?? 0)}
+				</p>
+			) : null}
 		</div>
 	);
 }
 
 /** Stacked work/rest bars for set-level timing (History detail + dashboard recent sets). */
-export function SetWorkRestBarChart({ sets, compact = false, strip = false, className = '' }) {
+export function SetWorkRestBarChart({
+	sets,
+	averages,
+	compact = false,
+	strip = false,
+	className = ''
+}) {
+	const avgBySet = useMemo(() => {
+		const map = new Map();
+		for (const row of averages || []) {
+			map.set(`${row.exercise_name}::${row.set_index}`, row);
+		}
+		return map;
+	}, [averages]);
+
+	const compare = avgBySet.size > 0;
+
 	const data = useMemo(() => {
 		const rows = strip ? (sets || []).filter((row) => !row.is_gap) : sets || [];
-		return rows.map((row) => ({
-			...row,
-			work: row.work_seconds ?? row.work ?? 0,
-			rest: row.rest_seconds ?? row.rest ?? 0
-		}));
-	}, [sets, strip]);
+		return rows.map((row) => {
+			const avg = avgBySet.get(`${row.exercise_name}::${row.set_index}`);
+			return {
+				...row,
+				work: row.work_seconds ?? row.work ?? 0,
+				rest: row.rest_seconds ?? row.rest ?? 0,
+				avg_work: avg ? (avg.work_seconds ?? avg.work ?? 0) : undefined,
+				avg_rest: avg ? (avg.rest_seconds ?? avg.rest ?? 0) : undefined
+			};
+		});
+	}, [sets, strip, avgBySet]);
 
 	if (!data.length) return null;
 
@@ -63,8 +102,8 @@ export function SetWorkRestBarChart({ sets, compact = false, strip = false, clas
 		: compact
 			? { top: 2, right: 0, left: 0, bottom: 2 }
 			: { top: 4, right: 4, left: -12, bottom: 0 };
-	const maxBarSize = strip ? 4 : compact ? 10 : 14;
-	const barCategoryGap = strip ? 0 : compact ? 2 : 4;
+	const maxBarSize = strip ? 4 : compact ? 10 : compare ? 12 : 14;
+	const barCategoryGap = strip ? 0 : compact ? 2 : compare ? 6 : 4;
 	const showAxes = !compact && !strip;
 
 	return (
@@ -94,7 +133,7 @@ export function SetWorkRestBarChart({ sets, compact = false, strip = false, clas
 					<Bar
 						dataKey="work"
 						name="Work"
-						stackId="time"
+						stackId="current"
 						fill="var(--primary)"
 						maxBarSize={maxBarSize}
 					>
@@ -105,15 +144,34 @@ export function SetWorkRestBarChart({ sets, compact = false, strip = false, clas
 					<Bar
 						dataKey="rest"
 						name="Rest"
-						stackId="time"
+						stackId="current"
 						fill="var(--success)"
 						maxBarSize={maxBarSize}
-						radius={strip ? [2, 2, 0, 0] : [4, 4, 0, 0]}
+						radius={compare ? 0 : strip ? [2, 2, 0, 0] : [4, 4, 0, 0]}
 					>
 						{data.map((row, index) => (
 							<Cell key={`rest-${index}`} fill={row.is_gap ? 'transparent' : 'var(--success)'} />
 						))}
 					</Bar>
+					{compare ? (
+						<>
+							<Bar
+								dataKey="avg_work"
+								name="Avg work"
+								stackId="avg"
+								fill={AVG_WORK}
+								maxBarSize={maxBarSize}
+							/>
+							<Bar
+								dataKey="avg_rest"
+								name="Avg rest"
+								stackId="avg"
+								fill={AVG_REST}
+								maxBarSize={maxBarSize}
+								radius={strip ? [2, 2, 0, 0] : [4, 4, 0, 0]}
+							/>
+						</>
+					) : null}
 				</BarChart>
 			</ResponsiveContainer>
 		</div>

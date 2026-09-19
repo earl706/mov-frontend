@@ -1,8 +1,18 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+	Area,
+	AreaChart,
+	Cell,
+	Pie,
+	PieChart,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis
+} from 'recharts';
 import {
 	Activity,
 	Check,
@@ -33,6 +43,7 @@ import { formatDelta, formatWeight, localDateKey } from '../lib/weightFormat';
 import {
 	sessionsApi,
 	useDashboard,
+	useRecentSessions,
 	useRecentSets,
 	useStartSession,
 	useTrainingHeatmap,
@@ -51,12 +62,28 @@ const item = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 const compactHeader = 'p-3 pb-1 lg:p-2.5 lg:pb-0.5';
 const compactBody = 'p-3 pt-0 lg:p-2.5 lg:pt-0';
 const chartHeight = 'h-full min-h-36';
-/** CompactActivityTile: 12px cells + 2px gaps → ~500px wide at 36 weeks. */
-const HEATMAP_WEEKS = 36;
+/** CompactActivityTile: 12px cells + 2px gaps → ~500px wide at 39 weeks. */
+const HEATMAP_WEEKS = 39;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
 const RECENT_SET_LIMIT = 120;
+const RECENT_SESSION_LIMIT = 30;
 const RPE_SESSION_LIMIT = 30;
+
+const MOVEMENT_LABELS = {
+	push: 'Push',
+	pull: 'Pull',
+	legs: 'Legs',
+	core: 'Core',
+	full_body: 'Full body'
+};
+const MOVEMENT_COLORS = {
+	push: 'var(--primary)',
+	pull: 'var(--accent)',
+	legs: 'var(--success)',
+	core: 'var(--warning)',
+	full_body: 'var(--muted)'
+};
 
 const chartTooltipStyle = {
 	background: 'var(--surface)',
@@ -354,90 +381,68 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 	);
 }
 
-/** Triple concentric rings for adherence / consistency / overreaching risk. */
-function SignalRings({ adherence, consistency, risk, size = 72 }) {
-	const rings = [
-		{
-			key: 'adherence',
-			label: 'Adherence',
-			pct: Math.min(100, Math.round((adherence ?? 0) * 100)),
-			good: (adherence ?? 0) * 100 >= 60,
-			stroke: 'var(--success)'
-		},
-		{
-			key: 'consistency',
-			label: 'Consistency',
-			pct: Math.min(100, Math.round((consistency ?? 0) * 100)),
-			good: (consistency ?? 0) * 100 >= 60,
-			stroke: 'var(--primary)'
-		},
-		{
-			key: 'risk',
-			label: 'Overreach',
-			pct: Math.min(100, Math.round((risk ?? 0) * 100)),
-			good: (risk ?? 0) * 100 < 60,
-			stroke: 'var(--warning)'
-		}
-	];
+/** Compact donut of logged sets by movement group (last 30 days). */
+function MovementDonut({ groups, size = 72 }) {
+	const slices = useMemo(() => {
+		return (groups || []).map((row) => ({
+			...row,
+			label: MOVEMENT_LABELS[row.group] || row.group,
+			color: MOVEMENT_COLORS[row.group] || 'var(--muted)'
+		}));
+	}, [groups]);
+	const total = slices.reduce((sum, row) => sum + (row.sets || 0), 0);
 
-	const gap = 1.5;
-	const stroke = 4;
-	const radii = rings.map((_, i) => {
-		const outer = (size - stroke) / 2;
-		return outer - i * (stroke + gap);
-	});
+	if (!total) {
+		return (
+			<p className="text-muted flex h-full w-full items-center justify-center px-2 text-center text-[10px] leading-snug">
+				Log workouts to see 30-day movement balance.
+			</p>
+		);
+	}
 
 	return (
-		<div className="flex h-full items-center justify-center gap-2">
-			<svg
-				width={size}
-				height={size}
-				className="shrink-0 -rotate-90"
-				aria-label={rings.map((r) => `${r.label} ${r.pct}%`).join(', ')}
-			>
-				{rings.map((ring, i) => {
-					const r = radii[i];
-					const c = 2 * Math.PI * r;
-					return (
-						<g key={ring.key}>
-							<circle
-								cx={size / 2}
-								cy={size / 2}
-								r={r}
-								fill="none"
-								stroke="var(--surface-2)"
-								strokeWidth={stroke}
+		<div className="flex h-full w-full items-center justify-center">
+			<div className="flex items-center gap-10 pt-5">
+				<div className="shrink-0" style={{ width: size, height: size }}>
+					<ResponsiveContainer width="100%" height="100%">
+						<PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+							<Pie
+								data={slices.filter((row) => row.sets > 0)}
+								dataKey="sets"
+								nameKey="label"
+								cx="50%"
+								cy="50%"
+								innerRadius={size * 0.32}
+								outerRadius={size / 2 - 1}
+								stroke="var(--surface)"
+								strokeWidth={1}
+								isAnimationActive={false}
+							>
+								{slices
+									.filter((row) => row.sets > 0)
+									.map((row) => (
+										<Cell key={row.group} fill={row.color} />
+									))}
+							</Pie>
+						</PieChart>
+					</ResponsiveContainer>
+				</div>
+				<ul
+					className="shrink-0 space-y-0.5 text-[10px] leading-tight"
+					aria-label="Sets by movement group, last 30 days"
+				>
+					{slices.map((row) => (
+						<li key={row.group} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5">
+							<span
+								className="h-1.5 w-1.5 shrink-0 rounded-full"
+								style={{ background: row.color }}
 							/>
-							<circle
-								cx={size / 2}
-								cy={size / 2}
-								r={r}
-								fill="none"
-								strokeWidth={stroke}
-								strokeLinecap="round"
-								strokeDasharray={c}
-								strokeDashoffset={c - (ring.pct / 100) * c}
-								style={{
-									stroke: ring.good ? ring.stroke : 'var(--warning)',
-									transition: 'stroke-dashoffset 0.5s linear, stroke 0.35s ease'
-								}}
-							/>
-						</g>
-					);
-				})}
-			</svg>
-			<ul className="min-w-0 space-y-0.5 text-[10px] leading-tight">
-				{rings.map((ring) => (
-					<li key={ring.key} className="flex items-center gap-1.5">
-						<span
-							className="h-1.5 w-1.5 shrink-0 rounded-full"
-							style={{ background: ring.good ? ring.stroke : 'var(--warning)' }}
-						/>
-						<span className="text-muted truncate">{ring.label}</span>
-						<span className={ring.good ? 'text-success' : 'text-warning'}>{ring.pct}%</span>
-					</li>
-				))}
-			</ul>
+							<span className="text-muted whitespace-nowrap">{row.label}</span>
+							<span className="text-fg tabular-nums">{Math.round((row.sets / total) * 100)}%</span>
+						</li>
+					))}
+				</ul>
+			</div>
 		</div>
 	);
 }
@@ -482,7 +487,7 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 		<Card className="flex min-h-0 flex-col overflow-hidden">
 			<CardHeader className={compactHeader} title="Logged days" />
 			<CardBody
-				className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
+				className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden pt-1`}
 			>
 				<CompactActivityTile
 					timeline={(weightHeatmap?.timeline || []).map((d) => ({
@@ -500,29 +505,70 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 const recentSetsHeader = 'items-center p-2 pb-0.5 lg:p-3 lg:pb-0';
 const recentSetsBody = 'p-2 pt-0 lg:p-3 lg:pt-0';
 
-function RecentSetsPanel({ data }) {
-	const hasData = (data?.set_count ?? 0) > 0;
-	const statsLabel = hasData
-		? `${data.set_count} sets · ${data.session_count} session${data.session_count === 1 ? '' : 's'} · avg ${formatDurationSeconds(data.avg_work_seconds)} work`
-		: null;
+function TimingViewToggle({ view, onChange }) {
+	return (
+		<div className="flex shrink-0 gap-1">
+			{[
+				{ id: 'sessions', label: 'Sessions' },
+				{ id: 'sets', label: 'Sets' }
+			].map((option) => (
+				<button
+					key={option.id}
+					type="button"
+					onClick={() => onChange(option.id)}
+					className={`cursor-pointer rounded-sm px-2 py-0.5 text-[11px] font-medium ${
+						view === option.id ? 'bg-primary/15 text-primary' : 'text-muted hover:text-fg'
+					}`}
+				>
+					{option.label}
+				</button>
+			))}
+		</div>
+	);
+}
+
+function RecentSetsPanel({ setsData, sessionsData }) {
+	const [view, setView] = useState('sessions');
+	const isSessions = view === 'sessions';
+	const hasSets = (setsData?.set_count ?? 0) > 0;
+	const hasSessions = (sessionsData?.session_count ?? 0) > 0;
+	const hasData = isSessions ? hasSessions : hasSets;
+	const statsLabel = isSessions
+		? hasSessions
+			? `${sessionsData.session_count} session${sessionsData.session_count === 1 ? '' : 's'} · avg ${formatDurationSeconds(sessionsData.avg_work_seconds)} work`
+			: null
+		: hasSets
+			? `${setsData.set_count} sets · ${setsData.session_count} session${setsData.session_count === 1 ? '' : 's'} · avg ${formatDurationSeconds(setsData.avg_work_seconds)} work`
+			: null;
 
 	return (
 		<Card className="flex min-h-0 flex-col">
 			<CardHeader
 				className={recentSetsHeader}
-				title="Recent sets"
+				title={isSessions ? 'Recent sessions' : 'Recent sets'}
 				action={
-					statsLabel ? (
-						<p className="text-muted shrink-0 text-[11px] leading-tight">{statsLabel}</p>
-					) : null
+					<div className="flex min-w-0 items-center gap-2">
+						{statsLabel ? (
+							<p className="text-muted hidden shrink-0 text-[11px] leading-tight sm:block">
+								{statsLabel}
+							</p>
+						) : null}
+						<TimingViewToggle view={view} onChange={setView} />
+					</div>
 				}
 			/>
 			<CardBody className={recentSetsBody}>
 				{hasData ? (
-					<SetWorkRestBarChart sets={data.sets} strip />
+					<SetWorkRestBarChart
+						sets={isSessions ? sessionsData.sessions : setsData.sets}
+						strip
+						className="h-[135px] w-full"
+					/>
 				) : (
 					<p className="text-muted text-sm">
-						Log workouts with the set timer to see recent work and rest per set.
+						{isSessions
+							? 'Finish workouts with the set timer to see work and rest per session.'
+							: 'Log workouts with the set timer to see recent work and rest per set.'}
 					</p>
 				)}
 			</CardBody>
@@ -530,22 +576,17 @@ function RecentSetsPanel({ data }) {
 	);
 }
 
-function ReadinessCard({ adherence, consistency, risk, dense = false }) {
+function MovementCard({ groups, dense = false }) {
 	return (
-		<Card className="flex min-h-0 flex-col items-center justify-center overflow-hidden lg:h-full">
+		<Card className="flex min-h-0 flex-col overflow-hidden lg:h-full">
 			<CardBody
 				className={
 					dense
-						? 'flex min-h-0 flex-1 items-center justify-center overflow-hidden p-1'
-						: `${compactBody} flex flex-1 items-center justify-center`
+						? 'flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden p-1'
+						: `${compactBody} flex w-full flex-1 items-center justify-center`
 				}
 			>
-				<SignalRings
-					adherence={adherence}
-					consistency={consistency}
-					risk={risk}
-					size={dense ? 56 : 88}
-				/>
+				<MovementDonut groups={groups} size={dense ? 80 : 88} />
 			</CardBody>
 		</Card>
 	);
@@ -567,6 +608,7 @@ export default function Dashboard() {
 	const { data: weightStats } = useWeightStats(weightStatsParams);
 	const { data: weightHeatmap } = useWeightHeatmap(HEATMAP_DAYS);
 	const { data: recentSets } = useRecentSets(RECENT_SET_LIMIT);
+	const { data: recentSessions } = useRecentSessions(RECENT_SESSION_LIMIT);
 	const { data: rpeSessionsPage } = sessionsApi.useList({
 		status: 'completed',
 		page_size: RPE_SESSION_LIMIT
@@ -686,12 +728,7 @@ export default function Dashboard() {
 						</CardBody>
 					</Card>
 
-					<ReadinessCard
-						dense
-						adherence={data.adherence}
-						consistency={data.consistency}
-						risk={data.overreaching_risk}
-					/>
+					<MovementCard dense groups={data.muscle_groups} />
 				</motion.div>
 
 				<motion.div
@@ -717,7 +754,7 @@ export default function Dashboard() {
 					<Card className="flex min-h-0 flex-col overflow-hidden">
 						<CardHeader className={compactHeader} title="Training days" />
 						<CardBody
-							className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden`}
+							className={`${compactBody} flex min-h-0 flex-1 flex-col justify-center overflow-hidden pt-1`}
 						>
 							<CompactActivityTile
 								timeline={heatmap?.timeline || []}
@@ -737,7 +774,7 @@ export default function Dashboard() {
 				</motion.div>
 
 				<motion.div variants={item} className="lg:shrink-0">
-					<RecentSetsPanel data={recentSets} />
+					<RecentSetsPanel setsData={recentSets} sessionsData={recentSessions} />
 				</motion.div>
 			</motion.div>
 		</div>

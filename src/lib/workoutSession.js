@@ -146,7 +146,6 @@ export function sessionSummaryStats(session) {
 	const sets = sessionSetChartData(session);
 	const workSeconds = sets.map((s) => s.work_seconds);
 	const restSeconds = sets.map((s) => s.rest_seconds);
-	const rpes = sets.map((s) => s.rpe).filter((v) => v != null && v !== '');
 
 	const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 	const mean = (arr) => (arr.length ? sum(arr) / arr.length : 0);
@@ -182,12 +181,46 @@ export function sessionSummaryStats(session) {
 		durationSeconds: duration,
 		avgWorkSeconds: Math.round(mean(workSeconds)),
 		avgRestSeconds: Math.round(mean(restSeconds)),
-		avgSetRpe: rpes.length ? Math.round(mean(rpes) * 10) / 10 : null,
-		sessionRpe: session?.perceived_effort ?? null,
 		volumeKg: Number(session?.total_volume_kg ?? 0),
 		calories: Number(session?.calories_burned ?? 0),
 		totalReps: session?.total_reps ?? 0,
 		byExercise,
 		chartSets: sets
+	};
+}
+
+/**
+ * Percent delta vs a same-routine session average.
+ * `higherIsBetter` flips good/bad for rest and duration.
+ */
+export function compareToAverage(current, average, { higherIsBetter = true } = {}) {
+	if (current == null || average == null) return null;
+	const cur = Number(current);
+	const avg = Number(average);
+	if (Number.isNaN(cur) || Number.isNaN(avg)) return null;
+	if (avg === 0 && cur === 0) {
+		return { label: '=', direction: 'flat', good: null };
+	}
+	if (avg === 0) {
+		return { label: '+', direction: 'up', good: higherIsBetter };
+	}
+	const pct = Math.round(((cur - avg) / avg) * 100);
+	if (pct === 0) {
+		return { label: '=', direction: 'flat', good: null };
+	}
+	return {
+		label: `${pct > 0 ? '+' : ''}${pct}%`,
+		direction: pct > 0 ? 'up' : 'down',
+		good: pct > 0 ? higherIsBetter : !higherIsBetter
+	};
+}
+
+export function averageCompareProps(current, average, { higherIsBetter = true, extra } = {}) {
+	const cmp = compareToAverage(current, average, { higherIsBetter });
+	if (!cmp) return extra ? { sublabel: extra } : {};
+	return {
+		sublabel: extra ? `${extra} · ${cmp.label}` : cmp.label,
+		sublabelTone: cmp.good == null ? 'muted' : cmp.good ? 'success' : 'warning',
+		trend: cmp.direction
 	};
 }

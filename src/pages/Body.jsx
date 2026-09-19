@@ -14,7 +14,18 @@ import {
 	XAxis,
 	YAxis
 } from 'recharts';
-import { Flame, Plus, Scale, Target, TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
+import {
+	ChevronLeft,
+	ChevronRight,
+	Flame,
+	Plus,
+	Scale,
+	Target,
+	TrendingDown,
+	TrendingUp,
+	Trash2,
+	X
+} from 'lucide-react';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -724,12 +735,118 @@ function MeasurementsPanel({ lengthUnit }) {
 	);
 }
 
+function ProgressPhotoViewer({ photos, index, unit, onClose, onChangeIndex }) {
+	const photo = index != null ? photos[index] : null;
+	const count = photos.length;
+	const canStep = count > 1;
+
+	const step = (delta) => {
+		if (!canStep) return;
+		onChangeIndex((index + delta + count) % count);
+	};
+
+	useEffect(() => {
+		if (index == null) return undefined;
+		const onKey = (event) => {
+			if (event.key === 'Escape') {
+				onClose();
+				return;
+			}
+			if (count <= 1) return;
+			if (event.key === 'ArrowLeft') {
+				event.preventDefault();
+				onChangeIndex((index - 1 + count) % count);
+			}
+			if (event.key === 'ArrowRight') {
+				event.preventDefault();
+				onChangeIndex((index + 1) % count);
+			}
+		};
+		document.addEventListener('keydown', onKey);
+		document.body.style.overflow = 'hidden';
+		return () => {
+			document.removeEventListener('keydown', onKey);
+			document.body.style.overflow = '';
+		};
+	}, [index, count, onClose, onChangeIndex]);
+
+	if (photo == null) return null;
+
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+			role="dialog"
+			aria-modal="true"
+			aria-label={`${photo.pose} progress photo`}
+		>
+			<div
+				className="absolute inset-0 cursor-pointer bg-black/80"
+				onClick={onClose}
+				aria-hidden="true"
+			/>
+			<button
+				type="button"
+				onClick={onClose}
+				aria-label="Close photo"
+				className="absolute top-3 right-3 z-10 inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-white hover:bg-white/10"
+			>
+				<X size={20} />
+			</button>
+			{canStep && (
+				<button
+					type="button"
+					onClick={() => step(-1)}
+					aria-label="Previous photo"
+					className="absolute left-2 z-10 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md text-white hover:bg-white/10 sm:left-4"
+				>
+					<ChevronLeft size={28} />
+				</button>
+			)}
+			{canStep && (
+				<button
+					type="button"
+					onClick={() => step(1)}
+					aria-label="Next photo"
+					className="absolute right-2 z-10 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md text-white hover:bg-white/10 sm:right-4"
+				>
+					<ChevronRight size={28} />
+				</button>
+			)}
+			<figure className="relative z-10 flex max-h-[90vh] max-w-[min(92vw,56rem)] flex-col items-center">
+				{photo.url && (
+					<img
+						src={photo.url}
+						alt={`${photo.pose} progress photo from ${photo.date}`}
+						className="max-h-[78vh] w-auto max-w-full rounded-md object-contain"
+					/>
+				)}
+				<figcaption className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-sm text-white">
+					<span className="capitalize">
+						{photo.pose} · {formatDate(photo.date, 'EEE, MMM d, yyyy')}
+					</span>
+					{photo.weight_kg ? (
+						<span className="text-white/70">
+							{formatWeight(fromKg(photo.weight_kg, unit), unit)}
+						</span>
+					) : null}
+					{count > 1 ? (
+						<span className="text-white/70">
+							{index + 1} / {count}
+						</span>
+					) : null}
+				</figcaption>
+			</figure>
+		</div>
+	);
+}
+
 function ProgressPhotosPanel({ unit }) {
-	const { data, isLoading } = progressPhotosApi.useList({ page_size: 12, ordering: '-date' });
+	const { data, isLoading } = progressPhotosApi.useList({ page_size: 28, ordering: '-date' });
 	const create = progressPhotosApi.useCreate();
 	const remove = progressPhotosApi.useRemove();
 	const [pose, setPose] = useState('front');
 	const [file, setFile] = useState(null);
+	const [viewerIndex, setViewerIndex] = useState(null);
 
 	const photos = data?.results || [];
 
@@ -748,77 +865,102 @@ function ProgressPhotosPanel({ unit }) {
 		e.target.reset();
 	};
 
-	return (
-		<Card>
-			<CardHeader title="Progress photos" subtitle="Same pose, same light, same time of day" />
-			<CardBody className="space-y-3">
-				<form onSubmit={submit} className="flex flex-wrap items-end gap-2">
-					<Select
-						label="Pose"
-						value={pose}
-						onChange={(e) => setPose(e.target.value)}
-						className="w-32"
-					>
-						<option value="front">Front</option>
-						<option value="side">Side</option>
-						<option value="back">Back</option>
-					</Select>
-					<Input
-						label="Photo"
-						type="file"
-						accept="image/*"
-						onChange={(e) => setFile(e.target.files?.[0] || null)}
-					/>
-					<Button type="submit" loading={create.isPending}>
-						Upload
-					</Button>
-				</form>
+	useEffect(() => {
+		if (viewerIndex == null) return;
+		if (!photos.length) {
+			setViewerIndex(null);
+			return;
+		}
+		if (viewerIndex >= photos.length) setViewerIndex(photos.length - 1);
+	}, [photos.length, viewerIndex]);
 
-				{isLoading && <p className="text-muted text-sm">Loading…</p>}
-				{!isLoading && !photos.length && (
-					<p className="text-muted text-sm">
-						No photos yet. A monthly photo often shows change the scale hides.
-					</p>
-				)}
-				{photos.length > 0 && (
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-						{photos.map((photo) => (
-							<figure key={photo.id} className="border-line overflow-hidden rounded-md border">
-								{photo.url && (
-									<img
-										src={photo.url}
-										alt={`${photo.pose} progress photo from ${photo.date}`}
-										className="aspect-square w-full object-cover"
-									/>
-								)}
-								<figcaption className="flex items-center gap-1 px-2 py-1.5">
-									<div className="min-w-0 flex-1">
-										<p className="text-fg truncate text-xs font-medium capitalize">
-											{photo.pose} · {formatDate(photo.date, 'MMM d')}
-										</p>
-										{photo.weight_kg && (
-											<p className="text-muted text-xs">
-												{formatWeight(fromKg(photo.weight_kg, unit), unit)}
+	return (
+		<>
+			<Card>
+				<CardHeader title="Progress photos" subtitle="Same pose, same light, same time of day" />
+				<CardBody className="space-y-3">
+					<form onSubmit={submit} className="flex flex-wrap items-end gap-2">
+						<Select
+							label="Pose"
+							value={pose}
+							onChange={(e) => setPose(e.target.value)}
+							className="w-32"
+						>
+							<option value="front">Front</option>
+							<option value="side">Side</option>
+							<option value="back">Back</option>
+						</Select>
+						<Input
+							label="Photo"
+							type="file"
+							accept="image/*"
+							onChange={(e) => setFile(e.target.files?.[0] || null)}
+						/>
+						<Button type="submit" loading={create.isPending}>
+							Upload
+						</Button>
+					</form>
+
+					{isLoading && <p className="text-muted text-sm">Loading…</p>}
+					{!isLoading && !photos.length && (
+						<p className="text-muted text-sm">
+							No photos yet. A monthly photo often shows change the scale hides.
+						</p>
+					)}
+					{photos.length > 0 && (
+						<div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7">
+							{photos.map((photo, index) => (
+								<figure key={photo.id} className="border-line overflow-hidden rounded-md border">
+									{photo.url && (
+										<button
+											type="button"
+											onClick={() => setViewerIndex(index)}
+											className="block w-full cursor-pointer"
+											aria-label={`Open ${photo.pose} photo from ${formatDate(photo.date, 'MMM d')}`}
+										>
+											<img
+												src={photo.url}
+												alt={`${photo.pose} progress photo from ${photo.date}`}
+												className="aspect-[3/4] w-full object-cover"
+											/>
+										</button>
+									)}
+									<figcaption className="flex items-center gap-1 px-2 py-1.5">
+										<div className="min-w-0 flex-1">
+											<p className="text-fg truncate text-xs font-medium capitalize">
+												{photo.pose} · {formatDate(photo.date, 'MMM d')}
 											</p>
-										)}
-									</div>
-									<button
-										type="button"
-										className="text-muted hover:text-danger cursor-pointer"
-										aria-label="Delete photo"
-										onClick={() => {
-											if (confirm('Delete this photo?')) remove.mutate(photo.id);
-										}}
-									>
-										<Trash2 size={13} />
-									</button>
-								</figcaption>
-							</figure>
-						))}
-					</div>
-				)}
-			</CardBody>
-		</Card>
+											{photo.weight_kg && (
+												<p className="text-muted text-xs">
+													{formatWeight(fromKg(photo.weight_kg, unit), unit)}
+												</p>
+											)}
+										</div>
+										<button
+											type="button"
+											className="text-muted hover:text-danger cursor-pointer"
+											aria-label="Delete photo"
+											onClick={() => {
+												if (confirm('Delete this photo?')) remove.mutate(photo.id);
+											}}
+										>
+											<Trash2 size={13} />
+										</button>
+									</figcaption>
+								</figure>
+							))}
+						</div>
+					)}
+				</CardBody>
+			</Card>
+			<ProgressPhotoViewer
+				photos={photos}
+				index={viewerIndex}
+				unit={unit}
+				onClose={() => setViewerIndex(null)}
+				onChangeIndex={setViewerIndex}
+			/>
+		</>
 	);
 }
 

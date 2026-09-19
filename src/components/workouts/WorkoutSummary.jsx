@@ -7,7 +7,8 @@ import { PageHeader } from '../layout/PageHeader';
 import { Badge, Button, Card, CardBody, CardHeader, StatCard } from '../ui';
 import { MildBadge } from './MildBadge';
 import { formatDate, formatDurationSeconds } from '../../lib/format';
-import { sessionSummaryStats } from '../../lib/workoutSession';
+import { useRoutineSessionAverage } from '../../lib/resources';
+import { averageCompareProps, sessionSummaryStats } from '../../lib/workoutSession';
 
 const container = { animate: { transition: { staggerChildren: 0.04 } } };
 const item = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 } };
@@ -18,6 +19,9 @@ const compactBody = 'p-2.5 pt-0';
 /** Single-viewport summary after finishing a workout (max 750px). */
 export function WorkoutSummary({ session, onDone }) {
 	const stats = useMemo(() => sessionSummaryStats(session), [session]);
+	const { data: average } = useRoutineSessionAverage(session.id);
+	const avg = average?.stats;
+	const sampleCount = average?.sample_count ?? 0;
 	const title = session.template_name || 'Workout';
 
 	return (
@@ -51,42 +55,56 @@ export function WorkoutSummary({ session, onDone }) {
 			>
 				<motion.div
 					variants={item}
-					className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-8"
+					className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6"
 				>
-					<StatCard dense icon={Dumbbell} label="Sets" value={stats.setCount} />
+					<StatCard
+						dense
+						icon={Dumbbell}
+						label="Sets"
+						value={stats.setCount}
+						{...averageCompareProps(stats.setCount, avg?.set_count)}
+					/>
 					<StatCard
 						dense
 						icon={Timer}
 						label="Duration"
 						value={formatDurationSeconds(stats.durationSeconds)}
+						{...averageCompareProps(stats.durationSeconds, avg?.duration_seconds, {
+							higherIsBetter: false
+						})}
 					/>
 					<StatCard
 						dense
 						icon={Timer}
 						label="Avg work"
 						value={formatDurationSeconds(stats.avgWorkSeconds)}
-						sublabel={`Σ ${formatDurationSeconds(stats.totalWorkSeconds)}`}
+						{...averageCompareProps(stats.avgWorkSeconds, avg?.avg_work_seconds, {
+							extra: `Σ ${formatDurationSeconds(stats.totalWorkSeconds)}`
+						})}
 					/>
 					<StatCard
 						dense
 						icon={Coffee}
 						label="Avg rest"
 						value={formatDurationSeconds(stats.avgRestSeconds)}
-						sublabel={`Σ ${formatDurationSeconds(stats.totalRestSeconds)}`}
+						{...averageCompareProps(stats.avgRestSeconds, avg?.avg_rest_seconds, {
+							higherIsBetter: false,
+							extra: `Σ ${formatDurationSeconds(stats.totalRestSeconds)}`
+						})}
 					/>
-					<StatCard dense icon={Scale} label="Volume" value={`${Math.round(stats.volumeKg)} kg`} />
-					<StatCard dense icon={Flame} label="Calories" value={Math.round(stats.calories)} />
+					<StatCard
+						dense
+						icon={Scale}
+						label="Volume"
+						value={`${Math.round(stats.volumeKg)} kg`}
+						{...averageCompareProps(stats.volumeKg, avg?.volume_kg)}
+					/>
 					<StatCard
 						dense
 						icon={Flame}
-						label="Session RPE"
-						value={stats.sessionRpe != null ? stats.sessionRpe : '—'}
-					/>
-					<StatCard
-						dense
-						icon={Dumbbell}
-						label="Avg set RPE"
-						value={stats.avgSetRpe != null ? stats.avgSetRpe : '—'}
+						label="Calories"
+						value={Math.round(stats.calories)}
+						{...averageCompareProps(stats.calories, avg?.calories)}
 					/>
 				</motion.div>
 
@@ -95,11 +113,19 @@ export function WorkoutSummary({ session, onDone }) {
 						<CardHeader
 							className={compactHeader}
 							title="Work & rest by set"
-							subtitle="Logged sets · rest 0 when none"
+							subtitle={
+								sampleCount
+									? `Current vs average of ${sampleCount} prior ${title} session${sampleCount === 1 ? '' : 's'}`
+									: 'Logged sets · rest 0 when none'
+							}
 						/>
 						<CardBody className={compactBody}>
 							{stats.chartSets.length ? (
-								<SetWorkRestBarChart sets={stats.chartSets} className="h-36 w-full" />
+								<SetWorkRestBarChart
+									sets={stats.chartSets}
+									averages={sampleCount ? average?.sets : undefined}
+									className="h-36 w-full"
+								/>
 							) : (
 								<p className="text-muted text-sm">No timed sets to chart.</p>
 							)}

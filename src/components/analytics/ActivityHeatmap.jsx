@@ -52,17 +52,28 @@ function buildCompactWeeks(timeline, weekCount = 7) {
 }
 
 function monthLabels(weeks) {
-	const labels = [];
+	const raw = [];
 	let lastMonth = '';
 	weeks.forEach((week, col) => {
 		const day = week.find((d) => d.date && !d.outOfRange) || week.find((d) => d.date);
 		if (!day?.date) return;
 		const month = formatDate(day.date, 'MMM');
 		if (month !== lastMonth) {
-			labels.push({ col, month });
+			raw.push({ col, month });
 			lastMonth = month;
 		}
 	});
+
+	// Drop a label when the next month starts too soon (e.g. Dec under Jan).
+	const minGap = 3;
+	const labels = [];
+	for (let i = 0; i < raw.length; i += 1) {
+		const next = raw[i + 1];
+		const prev = labels[labels.length - 1];
+		if (next && next.col - raw[i].col < minGap) continue;
+		if (prev && raw[i].col - prev.col < minGap) continue;
+		labels.push(raw[i]);
+	}
 	return labels;
 }
 
@@ -115,20 +126,22 @@ export function CompactActivityTile({
 
 	return (
 		<div
-			className={`flex max-h-full min-h-0 w-full flex-col items-stretch justify-center gap-2 ${className}`}
+			className={`flex h-full max-h-full min-h-0 w-full flex-col items-stretch justify-center gap-1.5 ${className}`}
 		>
 			<div
-				className="flex w-full shrink-0 flex-col gap-1.5"
+				className="flex min-h-0 w-full flex-1 flex-col justify-center"
+				style={{ containerType: 'size' }}
 				aria-label={`Activity over the last ${weeks} weeks`}
 			>
 				<div
-					className="grid w-full"
+					className="mx-auto grid max-h-full w-full p-px"
 					style={{
+						maxWidth: `min(100%, calc(100cqb * ${weeks} / 7))`,
+						aspectRatio: `${weeks} / 7`,
 						gridAutoFlow: 'column',
 						gridTemplateRows: 'repeat(7, minmax(0, 1fr))',
 						gridTemplateColumns: `repeat(${weeks}, minmax(0, 1fr))`,
-						gap: 3,
-						aspectRatio: `${weeks} / 7`
+						gap: 3
 					}}
 				>
 					{gridWeeks.flatMap((week, col) =>
@@ -162,17 +175,17 @@ export function CompactActivityTile({
 						})
 					)}
 				</div>
-				<div className="relative h-3 w-full shrink-0 text-[9px] leading-none">
-					{labels.map(({ col, month }) => (
-						<span
-							key={`${month}-${col}`}
-							className="text-muted absolute top-0"
-							style={{ left: `${(col / weeks) * 100}%` }}
-						>
-							{month}
-						</span>
-					))}
-				</div>
+			</div>
+			<div className="relative h-3 w-full shrink-0 text-[9px] leading-none">
+				{labels.map(({ col, month }) => (
+					<span
+						key={`${month}-${col}`}
+						className="text-muted absolute top-0"
+						style={{ left: `${(col / weeks) * 100}%` }}
+					>
+						{month}
+					</span>
+				))}
 			</div>
 			<div className="flex w-full shrink-0 items-center justify-between gap-2">
 				<p className="text-muted min-w-0 flex-1 truncate text-[10px] leading-tight">{status}</p>

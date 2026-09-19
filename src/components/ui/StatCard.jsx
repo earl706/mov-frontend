@@ -4,6 +4,12 @@ import { cn } from '../../lib/format';
 import { Card } from './Card';
 
 const TREND_TONE = { up: 'text-success', down: 'text-danger', flat: 'text-muted' };
+const SUB_TONE = {
+	success: 'text-success',
+	warning: 'text-warning',
+	danger: 'text-danger',
+	muted: 'text-muted'
+};
 
 /** Compact metric tile for dashboards (value + label + optional icon/trend). */
 export function StatCard({
@@ -11,6 +17,7 @@ export function StatCard({
 	label,
 	value,
 	sublabel,
+	sublabelTone,
 	tone = 'primary',
 	trend,
 	onClick,
@@ -48,7 +55,14 @@ export function StatCard({
 					{label}
 				</p>
 				{sublabel && (
-					<p className={cn('text-xs', trend ? TREND_TONE[trend] : 'text-muted')}>{sublabel}</p>
+					<p
+						className={cn(
+							'text-xs',
+							sublabelTone ? SUB_TONE[sublabelTone] : trend ? TREND_TONE[trend] : 'text-muted'
+						)}
+					>
+						{sublabel}
+					</p>
 				)}
 			</div>
 		</Card>
