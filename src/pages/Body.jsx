@@ -39,6 +39,7 @@ import {
 	Input,
 	LoadingScreen,
 	Modal,
+	Pagination,
 	Select,
 	StatCard,
 	Textarea
@@ -71,6 +72,7 @@ import { toast } from '../stores/toastStore';
 
 /** Matches the backend cap in apps/weight/models.py. */
 const MAX_WEIGHT = { kg: 400, lb: 880 };
+const HISTORY_PAGE_SIZE = 10;
 
 const MEASUREMENT_FIELDS = [
 	{ key: 'neck', label: 'Neck', hint: 'Below the larynx, sloping down' },
@@ -894,6 +896,7 @@ function ProgressPhotosPanel({ unit }) {
 							label="Photo"
 							type="file"
 							accept="image/*"
+							className="file:bg-primary/15 file:text-primary cursor-pointer file:mr-3 file:cursor-pointer file:rounded-sm file:border-0 file:px-3 file:py-1.5 file:text-sm file:font-medium"
 							onChange={(e) => setFile(e.target.files?.[0] || null)}
 						/>
 						<Button type="submit" loading={create.isPending}>
@@ -988,6 +991,7 @@ export default function BodyPage() {
 	const [editEntry, setEditEntry] = useState(null);
 	const [editWeight, setEditWeight] = useState('');
 	const [editTime, setEditTime] = useState('');
+	const [historyPage, setHistoryPage] = useState(1);
 
 	const seriesParams = useMemo(() => {
 		if (range === 'custom' && customFrom) {
@@ -1008,17 +1012,28 @@ export default function BodyPage() {
 	const { data: composition } = useBodyComposition();
 	const { data: calories } = useCalorieSummary(14);
 	const { data: fitnessProfile } = useFitnessProfile();
-	const { data: listData, isLoading: listLoading } = weightEntriesApi.useList({
+	const todayKey = localDateKey();
+	const {
+		data: listData,
+		isLoading: listLoading,
+		isFetching: listFetching
+	} = weightEntriesApi.useList({
 		ordering: '-date',
-		page_size: 30
+		page: historyPage,
+		page_size: HISTORY_PAGE_SIZE
+	});
+	const { data: todayData } = weightEntriesApi.useList({
+		date: todayKey,
+		page_size: 1
 	});
 	const update = weightEntriesApi.useUpdate();
 	const remove = weightEntriesApi.useRemove();
 	const saveProfile = useUpdateWeightProfile();
 
 	const entries = listData?.results || [];
-	const todayKey = localDateKey();
-	const existingToday = entries.find((e) => e.date === todayKey);
+	const totalCount = listData?.count ?? 0;
+	const totalPages = Math.max(1, Math.ceil(totalCount / HISTORY_PAGE_SIZE));
+	const existingToday = todayData?.results?.[0];
 	const unit = profile?.unit || series?.unit || 'kg';
 	const lengthUnit = fitnessProfile?.length_unit || 'cm';
 	const showOnboarding = profile && !profile.onboarding_complete && !onboardingDismissed;
@@ -1045,10 +1060,14 @@ export default function BodyPage() {
 			<PageHeader title="Body" icon={Scale} description="Track weight, goals, and consistency." />
 
 			<div className="mb-4">
-				<LogForm profile={profile} existingToday={existingToday} />
+				<LogForm
+					profile={profile}
+					existingToday={existingToday}
+					onLogged={() => setHistoryPage(1)}
+				/>
 			</div>
 
-			{!entries.length && (
+			{!listLoading && totalCount === 0 && (
 				<div className="mb-4">
 					<EmptyState
 						icon={Scale}
@@ -1370,8 +1389,11 @@ export default function BodyPage() {
 			<ProgressPhotosPanel unit={unit} />
 
 			<Card>
-				<CardHeader title="History" subtitle="One entry per day" />
-				<CardBody className="space-y-2">
+				<CardHeader
+					title="History"
+					subtitle={totalCount ? `${totalCount} logged · one per day` : 'One entry per day'}
+				/>
+				<CardBody className={listFetching ? 'space-y-2 opacity-70' : 'space-y-2'}>
 					{listLoading && <p className="text-muted text-sm">Loading…</p>}
 					{!listLoading && entries.length === 0 && (
 						<p className="text-muted text-sm">No entries yet.</p>
@@ -1406,7 +1428,13 @@ export default function BodyPage() {
 										className="text-muted hover:text-danger cursor-pointer"
 										aria-label="Delete entry"
 										onClick={() => {
-											if (confirm('Delete this weigh-in?')) remove.mutate(entry.id);
+											if (!confirm('Delete this weigh-in?')) return;
+											const wasLastOnPage = entries.length === 1 && historyPage > 1;
+											remove.mutate(entry.id, {
+												onSuccess: () => {
+													if (wasLastOnPage) setHistoryPage((p) => Math.max(1, p - 1));
+												}
+											});
 										}}
 									>
 										<Trash2 size={15} />
@@ -1415,6 +1443,13 @@ export default function BodyPage() {
 							)}
 						</div>
 					))}
+					<Pagination
+						page={historyPage}
+						totalPages={totalPages}
+						count={totalCount}
+						pageSize={HISTORY_PAGE_SIZE}
+						onPageChange={setHistoryPage}
+					/>
 				</CardBody>
 			</Card>
 
