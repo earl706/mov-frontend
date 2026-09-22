@@ -8,7 +8,8 @@ import {
 	ListChecks,
 	Play,
 	Plus,
-	Trash2
+	Trash2,
+	Wind
 } from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
@@ -178,7 +179,7 @@ export function RoutinesPage() {
 										disabled={!routine.exercise_count}
 										onClick={() =>
 											start.mutate(
-												{ template: routine.id, mild: true },
+												{ template: routine.id, intensity: 'mild' },
 												{
 													onSuccess: () => navigate('/train')
 												}
@@ -189,6 +190,24 @@ export function RoutinesPage() {
 									>
 										<Feather size={15} />
 										Start Mild
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										disabled={!routine.exercise_count}
+										onClick={() =>
+											start.mutate(
+												{ template: routine.id, intensity: 'extra_mild' },
+												{
+													onSuccess: () => navigate('/train')
+												}
+											)
+										}
+										loading={start.isPending}
+										title="Start Extra Mild — quarter sets (per-side kept even)"
+									>
+										<Wind size={15} />
+										Start Extra Mild
 									</Button>
 									<Button
 										size="sm"
@@ -356,7 +375,7 @@ function RoutineEditor({ routine }) {
 							disabled={!entries.length}
 							onClick={() =>
 								start.mutate(
-									{ template: routine.id, mild: true },
+									{ template: routine.id, intensity: 'mild' },
 									{ onSuccess: () => navigate('/train') }
 								)
 							}
@@ -365,6 +384,21 @@ function RoutineEditor({ routine }) {
 						>
 							<Feather size={16} />
 							Start Mild
+						</Button>
+						<Button
+							variant="ghost"
+							disabled={!entries.length}
+							onClick={() =>
+								start.mutate(
+									{ template: routine.id, intensity: 'extra_mild' },
+									{ onSuccess: () => navigate('/train') }
+								)
+							}
+							loading={start.isPending}
+							title="Start Extra Mild — quarter sets (per-side kept even)"
+						>
+							<Wind size={16} />
+							Start Extra Mild
 						</Button>
 						<Button onClick={save} loading={update.isPending}>
 							Save

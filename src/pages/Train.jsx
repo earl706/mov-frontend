@@ -10,7 +10,8 @@ import {
 	RotateCcw,
 	Square,
 	Timer,
-	Trash2
+	Trash2,
+	Wind
 } from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
@@ -26,7 +27,7 @@ import {
 	Modal,
 	Select
 } from '../components/ui';
-import { MildBadge } from '../components/workouts/MildBadge';
+import { SessionIntensityBadge } from '../components/workouts/MildBadge';
 import { WorkoutSummary } from '../components/workouts/WorkoutSummary';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
 import { cn, formatDurationCompact } from '../lib/format';
@@ -139,12 +140,26 @@ function RoutinePicker() {
 							</Button>
 							<Button
 								variant="secondary"
-								onClick={() => start.mutate({ template: suggested.template.id, mild: true })}
+								onClick={() => start.mutate({ template: suggested.template.id, intensity: 'mild' })}
 								loading={start.isPending}
 								title="Start Mild — half sets (per-side kept even)"
 							>
 								<Feather size={16} />
 								Start Mild
+							</Button>
+							<Button
+								variant="ghost"
+								onClick={() =>
+									start.mutate({
+										template: suggested.template.id,
+										intensity: 'extra_mild'
+									})
+								}
+								loading={start.isPending}
+								title="Start Extra Mild — quarter sets (per-side kept even)"
+							>
+								<Wind size={16} />
+								Start Extra Mild
 							</Button>
 						</div>
 					</CardBody>
@@ -179,12 +194,22 @@ function RoutinePicker() {
 								<Button
 									size="sm"
 									variant="ghost"
-									onClick={() => start.mutate({ template: routine.id, mild: true })}
+									onClick={() => start.mutate({ template: routine.id, intensity: 'mild' })}
 									loading={start.isPending}
 									title="Start Mild — half sets (per-side kept even)"
 								>
 									<Feather size={14} />
 									Start Mild
+								</Button>
+								<Button
+									size="sm"
+									variant="ghost"
+									onClick={() => start.mutate({ template: routine.id, intensity: 'extra_mild' })}
+									loading={start.isPending}
+									title="Start Extra Mild — quarter sets (per-side kept even)"
+								>
+									<Wind size={14} />
+									Start Extra Mild
 								</Button>
 							</div>
 						</div>
@@ -795,7 +820,7 @@ export default function TrainPage() {
 				title={
 					<span className="inline-flex items-center gap-2">
 						{session.template_name || 'Workout'}
-						{session.is_mild && <MildBadge />}
+						<SessionIntensityBadge intensity={session.intensity} />
 					</span>
 				}
 				icon={Timer}

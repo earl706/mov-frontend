@@ -17,7 +17,7 @@ import {
 	Pagination,
 	StatCard
 } from '../components/ui';
-import { MildBadge } from '../components/workouts/MildBadge';
+import { SessionIntensityBadge } from '../components/workouts/MildBadge';
 import { formatDate, formatDurationSeconds } from '../lib/format';
 import {
 	sessionsApi,
@@ -78,7 +78,7 @@ function SessionDetail({ session, onClose }) {
 			}
 		>
 			<p className="text-muted mb-3 flex flex-wrap items-center gap-2 text-sm">
-				{session.is_mild && <MildBadge />}
+				<SessionIntensityBadge intensity={session.intensity} />
 				<span>
 					{formatDate(session.date, 'EEEE, MMM d, yyyy')} · {session.total_sets} sets ·{' '}
 					{session.total_reps} reps · {Number(session.total_volume_kg)} kg ·{' '}
@@ -259,7 +259,7 @@ export default function HistoryPage() {
 								<p className="text-muted text-xs">{sessionRowSubtitle(session)}</p>
 							</button>
 							<SessionSetChart session={session} compact onClick={() => setDetail(session)} />
-							{session.is_mild && <MildBadge />}
+							<SessionIntensityBadge intensity={session.intensity} />
 							<Badge tone={STATUS_TONE[session.status]}>{session.status}</Badge>
 							<button
 								type="button"

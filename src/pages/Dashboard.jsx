@@ -23,7 +23,8 @@ import {
 	LayoutDashboard,
 	Play,
 	Scale,
-	Timer
+	Timer,
+	Wind
 } from 'lucide-react';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
@@ -294,7 +295,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 		);
 	} else if (suggested) {
 		actions = (
-			<div className="flex w-full flex-col items-center justify-center gap-1.5">
+			<div className="flex w-full flex-col items-center justify-center gap-1">
 				<Button
 					size="sm"
 					className="h-7 min-w-0 truncate px-2 text-xs"
@@ -306,23 +307,42 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 					<Play size={12} />
 					<span className="truncate">Start</span>
 				</Button>
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-7 px-2 text-xs"
-					onClick={() =>
-						start.mutate(
-							{ template: suggested.id, mild: true },
-							{ onSuccess: () => navigate('/train') }
-						)
-					}
-					loading={start.isPending}
-					aria-label={`Start Mild ${suggested.name}`}
-					title="Start Mild — half sets (per-side kept even)"
-				>
-					<Feather size={12} />
-					Mild
-				</Button>
+				<div className="flex w-full items-center gap-1">
+					<Button
+						size="sm"
+						variant="secondary"
+						className="h-7 min-w-0 flex-1 truncate px-1.5 text-xs"
+						onClick={() =>
+							start.mutate(
+								{ template: suggested.id, intensity: 'mild' },
+								{ onSuccess: () => navigate('/train') }
+							)
+						}
+						loading={start.isPending}
+						aria-label={`Start Mild ${suggested.name}`}
+						title="Start Mild — half sets (per-side kept even)"
+					>
+						<Feather size={12} />
+						<span className="truncate">Mild</span>
+					</Button>
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-7 min-w-0 flex-1 truncate px-1.5 text-xs"
+						onClick={() =>
+							start.mutate(
+								{ template: suggested.id, intensity: 'extra_mild' },
+								{ onSuccess: () => navigate('/train') }
+							)
+						}
+						loading={start.isPending}
+						aria-label={`Start Extra Mild ${suggested.name}`}
+						title="Start Extra Mild — quarter sets (per-side kept even)"
+					>
+						<Wind size={12} />
+						<span className="truncate">Extra</span>
+					</Button>
+				</div>
 			</div>
 		);
 	} else if (todayIsRest) {

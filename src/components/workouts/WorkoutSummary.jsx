@@ -5,7 +5,7 @@ import { Check, Coffee, Dumbbell, Flame, Scale, Timer } from 'lucide-react';
 import { SetWorkRestBarChart } from '../analytics/SetWorkRestBarChart';
 import { PageHeader } from '../layout/PageHeader';
 import { Badge, Button, Card, CardBody, CardHeader, StatCard } from '../ui';
-import { MildBadge } from './MildBadge';
+import { SessionIntensityBadge } from './MildBadge';
 import { formatDate, formatDurationSeconds } from '../../lib/format';
 import { useRoutineSessionAverage } from '../../lib/resources';
 import { averageCompareProps, sessionSummaryStats } from '../../lib/workoutSession';
@@ -31,7 +31,7 @@ export function WorkoutSummary({ session, onDone }) {
 					<span className="inline-flex items-center gap-2">
 						<Check size={20} className="text-success" />
 						Workout complete
-						{session.is_mild && <MildBadge />}
+						<SessionIntensityBadge intensity={session.intensity} />
 					</span>
 				}
 				icon={Timer}
