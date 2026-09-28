@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Dumbbell, Pencil, Plus, TrendingUp, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Dumbbell, Pencil, Plus, Target, Trash2, TrendingUp } from 'lucide-react';
 
 import { PageHeader } from '../components/layout/PageHeader';
 import {
@@ -14,8 +15,11 @@ import {
 	Select,
 	Textarea
 } from '../components/ui';
-import { exercisesApi, useExerciseHistory } from '../lib/resources';
+import { exercisesApi, goalsApi, useExerciseHistory, useWeightProfile } from '../lib/resources';
 import { formatDate } from '../lib/format';
+import { fromKg } from '../lib/weightFormat';
+import { toast } from '../stores/toastStore';
+import { VolumeTargets } from './Goals';
 
 const MOVEMENT_GROUPS = [
 	{ value: 'push', label: 'Push' },
@@ -218,7 +222,57 @@ function ExerciseForm({ open, initial, onClose }) {
 }
 
 function HistoryModal({ exercise, onClose }) {
+	const qc = useQueryClient();
 	const { data, isLoading } = useExerciseHistory(exercise?.id);
+	const { data: profile } = useWeightProfile();
+	const unit = profile?.unit || 'kg';
+	const invalidate = () => {
+		qc.invalidateQueries({ queryKey: ['goals'] });
+		qc.invalidateQueries({ queryKey: ['exercises', 'history'] });
+	};
+	const create = goalsApi.useCreate({
+		onSuccess: () => {
+			invalidate();
+			toast.success('Load goal saved.');
+		},
+		onError: (err) => {
+			const msg = err?.response?.data?.exercise?.[0] || 'Could not save load goal.';
+			toast.error(typeof msg === 'string' ? msg : 'Could not save load goal.');
+		}
+	});
+	const update = goalsApi.useUpdate({
+		onSuccess: () => {
+			invalidate();
+			toast.success('Load goal updated.');
+		},
+		onError: () => toast.error('Could not update load goal.')
+	});
+	const loadGoal = data?.load_goal;
+	const isHold = exercise?.track_mode === 'hold';
+	const [target, setTarget] = useState('');
+	const [date, setDate] = useState('');
+	const [increment, setIncrement] = useState(unit === 'lb' ? '5' : '2.5');
+
+	const yearFromNow = () => {
+		const day = new Date();
+		day.setFullYear(day.getFullYear() + 1);
+		return day.toISOString().slice(0, 10);
+	};
+
+	const saveLoad = (e) => {
+		e.preventDefault();
+		const body = {
+			kind: 'load',
+			window: 'deadline',
+			exercise: exercise.id,
+			target_date: date || yearFromNow(),
+			target_value_input: Number(target),
+			increment_input: Number(increment)
+		};
+		if (loadGoal?.id) update.mutate({ id: loadGoal.id, ...body });
+		else create.mutate(body);
+	};
+
 	return (
 		<Modal
 			open={Boolean(exercise)}
@@ -243,6 +297,69 @@ function HistoryModal({ exercise, onClose }) {
 					</div>
 				</div>
 			)}
+			{!isHold && (
+				<div className="border-line mb-4 space-y-3 rounded-md border px-3 py-3">
+					<p className="text-fg flex items-center gap-1.5 text-sm font-medium">
+						<Target size={14} />
+						Load destination
+						{exercise?.per_side ? (
+							<span className="text-muted font-normal"> (per side)</span>
+						) : null}
+					</p>
+					{loadGoal && (
+						<p className="text-muted text-xs">
+							Checkpoint {fromKg(loadGoal.progress?.checkpoint_kg, unit)} {unit} · last{' '}
+							{loadGoal.actual_top != null ? `${loadGoal.actual_top} ${unit}` : '—'} · arrive{' '}
+							{formatDate(loadGoal.progress?.effective_target_date, 'MMM d, yyyy')}
+						</p>
+					)}
+					<form onSubmit={saveLoad} className="grid grid-cols-2 gap-2">
+						<Input
+							label={`Target (${unit})`}
+							type="number"
+							min="0.25"
+							step="0.25"
+							value={target || (loadGoal?.target_value ?? '')}
+							onChange={(e) => setTarget(e.target.value)}
+							required
+						/>
+						<Input
+							label="Arrive by"
+							type="date"
+							value={date || loadGoal?.target_date || yearFromNow()}
+							onChange={(e) => setDate(e.target.value)}
+							required
+						/>
+						<Input
+							label={`Plate (${unit})`}
+							type="number"
+							min="0.25"
+							step="0.25"
+							value={increment}
+							onChange={(e) => setIncrement(e.target.value)}
+						/>
+						<div className="flex items-end gap-2">
+							<Button size="sm" type="submit" loading={create.isPending || update.isPending}>
+								{loadGoal ? 'Update' : 'Set goal'}
+							</Button>
+							{loadGoal && (
+								<Button
+									size="sm"
+									variant="ghost"
+									type="button"
+									onClick={() => update.mutate({ id: loadGoal.id, status: 'abandoned' })}
+								>
+									Abandon
+								</Button>
+							)}
+						</div>
+					</form>
+				</div>
+			)}
+			<div className="border-line mb-4 rounded-md border px-3 py-3">
+				<p className="text-fg mb-2 text-sm font-medium">Volume targets</p>
+				<VolumeTargets goals={data?.volume_goals || []} exerciseId={exercise?.id} />
+			</div>
 			<div className="space-y-2">
 				{(data?.history || []).map((row) => (
 					<div key={row.date} className="border-line rounded-md border px-3 py-2">
@@ -250,9 +367,8 @@ function HistoryModal({ exercise, onClose }) {
 							{formatDate(row.date, 'EEE, MMM d, yyyy')}
 						</p>
 						<p className="text-muted text-xs">
-							{row.sets} sets · {row.reps} reps
-							{row.top_load ? ` · top ${row.top_load} kg` : ''}
-							{row.volume_kg ? ` · ${row.volume_kg} kg volume` : ''}
+							{row.sets} sets · {row.total_reps ?? row.reps} reps
+							{row.top_load_kg != null ? ` · top ${row.top_load_kg} kg` : ''}
 						</p>
 					</div>
 				))}

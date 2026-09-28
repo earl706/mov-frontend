@@ -1,4 +1,4 @@
-import { Dumbbell, History, LayoutDashboard, ListChecks, Scale, Timer } from 'lucide-react';
+import { Dumbbell, History, LayoutDashboard, ListChecks, Scale, Target, Timer } from 'lucide-react';
 
 /** Primary navigation, grouped for the sidebar. `end` marks exact-match links. */
 export const navGroups = [
@@ -15,6 +15,7 @@ export const navGroups = [
 		label: 'Progress',
 		items: [
 			{ to: '/history', label: 'History', icon: History },
+			{ to: '/goals', label: 'Goals', icon: Target },
 			{ to: '/body', label: 'Body', icon: Scale }
 		]
 	}

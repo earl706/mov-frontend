@@ -40,6 +40,7 @@ export const appRoutes = [
 	},
 	{ path: 'exercises', Component: lazy(() => import('./Exercises')) },
 	{ path: 'history', Component: lazy(() => import('./History')) },
+	{ path: 'goals', Component: lazy(() => import('./Goals')) },
 	{ path: 'body', Component: lazy(() => import('./Body')) },
 	{ path: 'notifications', Component: lazy(() => import('./Notifications')) },
 	{ path: 'settings', Component: lazy(() => import('./Settings')) }

@@ -30,6 +30,7 @@ import {
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
 import { SetWorkRestBarChart } from '../components/analytics/SetWorkRestBarChart';
 import { PageHeader } from '../components/layout/PageHeader';
+import { DashboardGoalsCard } from './Goals';
 import {
 	Button,
 	Card,
@@ -43,10 +44,14 @@ import { formatDate, formatDurationSeconds } from '../lib/format';
 import { formatDelta, formatWeight, localDateKey } from '../lib/weightFormat';
 import {
 	sessionsApi,
+	useClearSick,
 	useDashboard,
+	useGoalsProgress,
+	useMarkSick,
 	useRecentSessions,
 	useRecentSets,
 	useStartSession,
+	useToggleSickDay,
 	useTrainingHeatmap,
 	useTrainingSeries,
 	useWeightHeatmap,
@@ -68,8 +73,8 @@ const HEATMAP_WEEKS = 39;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
 const RECENT_SET_LIMIT = 120;
-const RECENT_SESSION_LIMIT = 30;
-const RPE_SESSION_LIMIT = 30;
+const RECENT_SESSION_LIMIT = 120;
+const RPE_SESSION_LIMIT = 120;
 
 const MOVEMENT_LABELS = {
 	push: 'Push',
@@ -268,17 +273,24 @@ function greeting() {
 }
 
 /** The one thing the dashboard is really for: did you train today, and what's next. */
-function TodayCard({ training, activeSession, suggested, todayIsRest }) {
+function TodayCard({ training, activeSession, suggested, todayIsRest, todayIsSick }) {
 	const navigate = useNavigate();
 	const start = useStartSession();
+	const markSick = useMarkSick();
+	const clearSick = useClearSick();
+	const today = localDateKey();
 	const weeklyGoal = training.weekly_goal || 0;
 	const calendarSessions = training.sessions_calendar_week ?? 0;
 	const goalPct = weeklyGoal ? Math.min(100, Math.round((calendarSessions / weeklyGoal) * 100)) : 0;
 	const ringLabel = weeklyGoal ? `${calendarSessions}/${weeklyGoal}` : `${calendarSessions}`;
+	const showSick = todayIsSick && !training.trained_today && !activeSession;
+	const canMarkSick = !training.trained_today && !todayIsRest && !todayIsSick && !activeSession;
 
 	let statusLabel;
 	if (training.trained_today) {
 		statusLabel = 'Done today';
+	} else if (showSick) {
+		statusLabel = 'Sick day';
 	} else if (todayIsRest) {
 		statusLabel = 'Rest day';
 	} else {
@@ -293,12 +305,23 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 				Resume
 			</Button>
 		);
+	} else if (showSick) {
+		actions = (
+			<Button
+				variant="secondary"
+				size="sm"
+				className="h-7 w-full text-xs"
+				onClick={() => navigate('/train')}
+			>
+				Train anyway
+			</Button>
+		);
 	} else if (suggested) {
 		actions = (
 			<div className="flex w-full flex-col items-center justify-center gap-1">
 				<Button
 					size="sm"
-					className="h-7 min-w-0 truncate px-2 text-xs"
+					className="h-7 w-full min-w-0 truncate px-2 text-xs"
 					onClick={() =>
 						start.mutate({ template: suggested.id }, { onSuccess: () => navigate('/train') })
 					}
@@ -369,7 +392,7 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 			className={
 				training.trained_today
 					? 'border-success/40 flex h-full flex-col overflow-hidden'
-					: todayIsRest
+					: showSick || todayIsRest
 						? 'flex h-full flex-col overflow-hidden'
 						: 'border-primary/40 flex h-full flex-col overflow-hidden'
 			}
@@ -387,12 +410,32 @@ function TodayCard({ training, activeSession, suggested, todayIsRest }) {
 					<p
 						className={
 							training.trained_today
-								? 'text-success max-w-18 text-[10px] leading-tight'
-								: 'text-muted max-w-18 text-[10px] leading-tight'
+								? 'text-success max-w-24 text-[10px] leading-tight'
+								: 'text-muted max-w-24 text-[10px] leading-tight'
 						}
 					>
 						{training.trained_today && <Check size={10} className="mr-0.5 inline shrink-0" />}
 						{statusLabel}
+						{canMarkSick && (
+							<button
+								type="button"
+								className="text-muted hover:text-fg mt-0.5 block text-[10px] font-medium"
+								onClick={() => markSick.mutate(today)}
+								disabled={markSick.isPending}
+							>
+								Sick
+							</button>
+						)}
+						{showSick && (
+							<button
+								type="button"
+								className="text-muted hover:text-fg mt-0.5 block text-[10px] font-medium"
+								onClick={() => clearSick.mutate(today)}
+								disabled={clearSick.isPending}
+							>
+								I&apos;m better
+							</button>
+						)}
 					</p>
 				</div>
 				<div className="flex min-w-0 flex-1 items-center">{actions}</div>
@@ -617,6 +660,7 @@ export default function Dashboard() {
 	const user = useAuthStore((s) => s.user);
 	const { data, isLoading } = useDashboard();
 	const { data: heatmap } = useTrainingHeatmap(HEATMAP_DAYS);
+	const sickToggle = useToggleSickDay();
 	const { data: volumeSeries } = useTrainingSeries(CHART_DAYS);
 	const { data: weightProfile } = useWeightProfile();
 	const { data: weightSeries } = useWeightSeries({ days: CHART_DAYS });
@@ -629,6 +673,7 @@ export default function Dashboard() {
 	const { data: weightHeatmap } = useWeightHeatmap(HEATMAP_DAYS);
 	const { data: recentSets } = useRecentSets(RECENT_SET_LIMIT);
 	const { data: recentSessions } = useRecentSessions(RECENT_SESSION_LIMIT);
+	const { data: goalsProgress } = useGoalsProgress();
 	const { data: rpeSessionsPage } = sessionsApi.useList({
 		status: 'completed',
 		page_size: RPE_SESSION_LIMIT
@@ -655,6 +700,9 @@ export default function Dashboard() {
 	const firstName = (user?.full_name || '').split(' ')[0];
 	const weightUnit = weightProfile?.unit || weightSeries?.unit || weight.unit || 'kg';
 	const rpeSessions = rpeSessionsPage?.results || [];
+	const weeklyVolumeTarget = (goalsProgress?.goals || []).find(
+		(row) => row.kind === 'volume' && !row.exercise && row.window === 'week'
+	)?.target_value;
 
 	return (
 		<div className="lg:-my-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:flex-col lg:overflow-hidden lg:py-2">
@@ -697,6 +745,7 @@ export default function Dashboard() {
 							activeSession={data.active_session}
 							suggested={data.suggested_routine}
 							todayIsRest={data.today_is_rest}
+							todayIsSick={data.today_is_sick}
 						/>
 					</div>
 
@@ -720,15 +769,13 @@ export default function Dashboard() {
 							dense
 							icon={Activity}
 							label="Volume"
-							value={`${Math.round(training.volume_this_week_kg)} kg`}
-							trend={
-								training.volume_change_pct > 0
-									? 'up'
-									: training.volume_change_pct < 0
-										? 'down'
-										: 'flat'
+							value={
+								weeklyVolumeTarget
+									? `${Math.round(training.volume_this_week_kg)}/${Math.round(weeklyVolumeTarget)} kg`
+									: `${Math.round(training.volume_this_week_kg)} kg`
 							}
-							className="px-2 py-1"
+							onClick={() => navigate('/goals')}
+							className="min-h-0 overflow-hidden px-2 py-1"
 						/>
 						<StatCard
 							dense
@@ -779,7 +826,9 @@ export default function Dashboard() {
 							<CompactActivityTile
 								timeline={heatmap?.timeline || []}
 								weeks={HEATMAP_WEEKS}
-								emptyLabel="Rest day"
+								emptyLabel="No workout"
+								showSchedule
+								onToggleSick={sickToggle.toggle}
 							/>
 						</CardBody>
 					</Card>
@@ -787,10 +836,11 @@ export default function Dashboard() {
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-3 lg:gap-2"
 				>
 					<WeightTrendCard unit={weightUnit} chartData={weightChartData} stats={weightStats} />
 					<WeightLoggedDaysCard weightHeatmap={weightHeatmap} />
+					<DashboardGoalsCard goals={goalsProgress?.goals || []} unit={weightUnit} />
 				</motion.div>
 
 				<motion.div variants={item} className="lg:shrink-0">

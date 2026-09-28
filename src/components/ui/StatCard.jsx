@@ -48,7 +48,12 @@ export function StatCard({
 				</div>
 			)}
 			<div className="min-w-0">
-				<p className={cn('text-fg leading-tight font-semibold', dense ? 'text-sm' : 'text-2xl')}>
+				<p
+					className={cn(
+						'text-fg truncate leading-tight font-semibold',
+						dense ? 'text-sm' : 'text-2xl'
+					)}
+				>
 					{value}
 				</p>
 				<p className={cn('text-muted truncate', dense ? 'text-[10px] leading-tight' : 'text-xs')}>
@@ -57,7 +62,8 @@ export function StatCard({
 				{sublabel && (
 					<p
 						className={cn(
-							'text-xs',
+							'truncate',
+							dense ? 'text-[10px] leading-tight' : 'text-xs',
 							sublabelTone ? SUB_TONE[sublabelTone] : trend ? TREND_TONE[trend] : 'text-muted'
 						)}
 					>

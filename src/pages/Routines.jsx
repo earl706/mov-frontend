@@ -408,7 +408,7 @@ function RoutineEditor({ routine }) {
 			/>
 
 			<Card className="mb-4">
-				<CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+				<CardBody className="grid grid-cols-1 gap-3 pt-5 sm:grid-cols-3">
 					<Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
 					<Input
 						label="Description"

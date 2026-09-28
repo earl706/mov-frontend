@@ -9,6 +9,8 @@ const LEVEL_BG = [
 	'color-mix(in srgb, var(--primary) 72%, var(--surface))',
 	'var(--primary)'
 ];
+const REST_BG = 'color-mix(in srgb, var(--muted) 48%, var(--surface))';
+const SICK_BG = 'color-mix(in srgb, var(--warning) 62%, var(--surface))';
 
 function intensityLevel(intensity, max) {
 	if (intensity <= 0) return 0;
@@ -17,6 +19,19 @@ function intensityLevel(intensity, max) {
 	if (ratio > 0.5) return 3;
 	if (ratio > 0.25) return 2;
 	return 1;
+}
+
+function cellBackground(day, lvl) {
+	if (day.outOfRange) return 'transparent';
+	if (day.sick) return SICK_BG;
+	if (day.rest) return REST_BG;
+	return LEVEL_BG[lvl];
+}
+
+function canToggleSick(day) {
+	if (!day?.date || day.outOfRange) return false;
+	if (day.trained || day.rest) return false;
+	return true;
 }
 
 function buildHeatmapWeeks(timeline) {
@@ -79,14 +94,28 @@ function monthLabels(weeks) {
 
 function daySummary(day, emptyLabel) {
 	if (!day?.date || day.outOfRange) return null;
-	const active = day.trained || day.intensity > 0 || day.logged;
 	const when = formatDate(day.date, 'EEE, MMM d');
+	if (day.sick) return `${when} · Sick day`;
+	if (day.rest) return `${when} · Rest day`;
+	const active = day.trained || day.intensity > 0 || day.logged;
 	if (!active) return `${when} · ${emptyLabel}`;
 	if (day.logged && !(day.intensity > 0)) return `${when} · Weigh-in logged`;
 	const bits = [`${when}`];
 	if (day.intensity > 0) bits.push(`${day.intensity} set${day.intensity === 1 ? '' : 's'}`);
 	if (day.volume_kg > 0) bits.push(`${Math.round(day.volume_kg)} kg`);
 	return bits.join(' · ');
+}
+
+function dayAriaLabel(day) {
+	if (!day?.date) return undefined;
+	const when = formatDate(day.date, 'MMM d');
+	if (day.sick) return `${when}: sick day`;
+	if (day.rest) return `${when}: rest day`;
+	if (day.trained || day.intensity > 0) {
+		return `${when}: ${day.intensity || 0} activity`;
+	}
+	if (day.logged) return `${when}: weigh-in logged`;
+	return `${when}: no activity`;
 }
 
 /**
@@ -97,12 +126,14 @@ export function CompactActivityTile({
 	timeline = [],
 	weeks = 7,
 	className = '',
-	emptyLabel = 'No activity'
+	emptyLabel = 'No activity',
+	showSchedule = false,
+	onToggleSick
 }) {
 	const [focus, setFocus] = useState(null);
 	const gridWeeks = useMemo(() => buildCompactWeeks(timeline, weeks), [timeline, weeks]);
 	const maxIntensity = useMemo(
-		() => Math.max(1, ...timeline.map((d) => d.intensity || 0)),
+		() => Math.max(1, ...timeline.map((d) => (d.sick || d.rest ? 0 : d.intensity || 0))),
 		[timeline]
 	);
 	const labels = useMemo(() => monthLabels(gridWeeks), [gridWeeks]);
@@ -149,6 +180,7 @@ export function CompactActivityTile({
 							const lvl = day.outOfRange ? 0 : intensityLevel(day.intensity, maxIntensity);
 							const active = !day.outOfRange && day.date;
 							const isFocus = focus === day.date;
+							const toggleable = Boolean(onToggleSick) && canToggleSick(day);
 
 							return (
 								<button
@@ -157,19 +189,26 @@ export function CompactActivityTile({
 									disabled={!active}
 									className={`min-h-0 min-w-0 rounded-[3px] transition-[box-shadow,background-color] duration-150 ${
 										active
-											? 'hover:ring-primary/50 focus-visible:ring-primary cursor-pointer hover:ring-1 focus-visible:ring-1 focus-visible:outline-none'
+											? `${toggleable ? 'cursor-pointer' : 'cursor-default'} hover:ring-primary/50 focus-visible:ring-primary hover:ring-1 focus-visible:ring-1 focus-visible:outline-none`
 											: 'pointer-events-none opacity-25'
 									} ${isFocus ? 'ring-primary ring-1' : ''}`}
-									style={{ background: day.outOfRange ? 'transparent' : LEVEL_BG[lvl] }}
-									aria-label={
-										day.date
-											? `${formatDate(day.date, 'MMM d')}: ${day.intensity || 0} activity`
-											: undefined
-									}
+									style={{
+										background: cellBackground(day, lvl),
+										boxShadow: day.sick
+											? 'inset 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent)'
+											: day.rest
+												? 'inset 0 0 0 1px color-mix(in srgb, var(--muted) 45%, transparent)'
+												: undefined
+									}}
+									aria-label={dayAriaLabel(day)}
+									title={toggleable ? (day.sick ? 'Clear sick day' : 'Mark sick day') : undefined}
 									onMouseEnter={() => active && setFocus(day.date)}
 									onMouseLeave={() => setFocus(null)}
 									onFocus={() => active && setFocus(day.date)}
 									onBlur={() => setFocus(null)}
+									onClick={() => {
+										if (toggleable) onToggleSick(day);
+									}}
 								/>
 							);
 						})
@@ -190,6 +229,30 @@ export function CompactActivityTile({
 			<div className="flex w-full shrink-0 items-center justify-between gap-2">
 				<p className="text-muted min-w-0 flex-1 truncate text-[10px] leading-tight">{status}</p>
 				<div className="text-muted flex shrink-0 items-center gap-1 text-[9px]">
+					{showSchedule ? (
+						<>
+							<span className="flex items-center gap-0.5" title="Rest day">
+								<span
+									className="h-2 w-2 rounded-[2px]"
+									style={{
+										background: REST_BG,
+										boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--muted) 45%, transparent)'
+									}}
+								/>
+								<span className="hidden sm:inline">Rest</span>
+							</span>
+							<span className="flex items-center gap-0.5" title="Sick day">
+								<span
+									className="h-2 w-2 rounded-[2px]"
+									style={{
+										background: SICK_BG,
+										boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent)'
+									}}
+								/>
+								<span className="hidden sm:inline">Sick</span>
+							</span>
+						</>
+					) : null}
 					<span className="hidden sm:inline">Less</span>
 					<div className="flex gap-[2px]">
 						{LEVEL_BG.map((bg, i) => (

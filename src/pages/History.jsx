@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Activity, Dumbbell, Flame, History as HistoryIcon, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, Dumbbell, Flame, History as HistoryIcon, Plus, Trash2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
@@ -21,14 +21,19 @@ import { SessionIntensityBadge } from '../components/workouts/MildBadge';
 import { formatDate, formatDurationSeconds } from '../lib/format';
 import {
 	sessionsApi,
+	useDeleteSet,
+	useLogSet,
+	useToggleSickDay,
 	useTrainingHeatmap,
 	useTrainingSeries,
 	useTrainingStats
 } from '../lib/resources';
+import { formatTimerDisplay, parseTimerInput, sanitizeTimerInput } from '../lib/timerFormat';
 import { sessionSetChartData } from '../lib/workoutSession';
 
 const STATUS_TONE = { completed: 'success', active: 'primary', abandoned: 'neutral' };
 const PAGE_SIZE = 5;
+const MAX_SETS = 30;
 
 function isRoutineSession(session) {
 	return session.template != null || Boolean(session.template_name);
@@ -63,14 +68,101 @@ function SessionSetChart({ session, compact = false, onClick }) {
 	);
 }
 
-function SessionDetail({ session, onClose }) {
+function DurationInput({ seconds, onCommit, label, disabled }) {
+	const [text, setText] = useState(() => formatTimerDisplay(seconds || 0));
+	useEffect(() => {
+		setText(formatTimerDisplay(seconds || 0));
+	}, [seconds]);
+
+	return (
+		<label className="flex min-w-0 flex-1 items-center gap-1">
+			<span className="text-muted shrink-0 text-[10px] font-medium uppercase">{label}</span>
+			<input
+				value={text}
+				disabled={disabled}
+				onChange={(e) => setText(sanitizeTimerInput(e.target.value))}
+				onBlur={() => onCommit(parseTimerInput(text))}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter') e.currentTarget.blur();
+				}}
+				aria-label={label}
+				className="border-line bg-surface text-fg w-full rounded-sm border px-1.5 py-0.5 text-xs tabular-nums"
+			/>
+		</label>
+	);
+}
+
+function setLogPayload(exercise, set, overrides = {}) {
+	return {
+		session_exercise: exercise.id,
+		index: set.index,
+		reps: set.reps,
+		hold_seconds: set.hold_seconds,
+		load_kg: set.load_kg,
+		work_seconds: set.work_seconds,
+		rest_seconds: set.rest_seconds,
+		rpe: set.rpe,
+		skipped: Boolean(set.skipped),
+		notes: set.notes || '',
+		...overrides
+	};
+}
+
+function SessionDetail({ session, onClose, onSessionChange }) {
+	const logSet = useLogSet();
+	const deleteSet = useDeleteSet();
+	const busy = logSet.isPending || deleteSet.isPending;
+
 	if (!session) return null;
+
+	const apply = (updated) => {
+		if (updated) onSessionChange?.(updated);
+	};
+
+	const saveTiming = async (exercise, set, field, seconds) => {
+		if (seconds === (set[field] || 0)) return;
+		const updated = await logSet.mutateAsync({
+			sessionId: session.id,
+			...setLogPayload(exercise, set, { [field]: seconds })
+		});
+		apply(updated);
+	};
+
+	const addSet = async (exercise) => {
+		const sets = exercise.sets || [];
+		if (sets.length >= MAX_SETS) return;
+		const last = sets[sets.length - 1];
+		const updated = await logSet.mutateAsync({
+			sessionId: session.id,
+			session_exercise: exercise.id,
+			index: (last?.index ?? 0) + 1,
+			reps: last?.reps ?? exercise.planned_reps ?? 0,
+			hold_seconds: last?.hold_seconds ?? exercise.planned_hold_seconds ?? 0,
+			load_kg: last?.load_kg ?? exercise.target_load_kg ?? null,
+			work_seconds: 0,
+			rest_seconds: exercise.rest_set_seconds ?? 0,
+			rpe: last?.rpe ?? null,
+			skipped: false,
+			notes: ''
+		});
+		apply(updated);
+	};
+
+	const removeSet = async (exercise, set) => {
+		const updated = await deleteSet.mutateAsync({
+			sessionId: session.id,
+			session_exercise: exercise.id,
+			index: set.index
+		});
+		apply(updated);
+	};
+
 	return (
 		<Modal
 			open
 			onClose={onClose}
 			title={session.template_name || 'Workout'}
-			size="md"
+			size="xl"
 			footer={
 				<Button variant="ghost" onClick={onClose}>
 					Close
@@ -85,38 +177,81 @@ function SessionDetail({ session, onClose }) {
 					{Number(session.calories_burned)} kcal
 				</span>
 			</p>
+			<p className="text-muted mb-3 text-xs">
+				Edit work and rest on each set. Add or remove sets — volume and calories update on save.
+			</p>
 
 			<SessionSetChart session={session} />
-			<div className="space-y-3">
-				{(session.exercises || []).map((exercise) => (
-					<div key={exercise.id} className="border-line rounded-md border px-3 py-2">
-						<div className="flex items-center gap-2">
-							<p className="text-fg min-w-0 flex-1 truncate text-sm font-medium">
-								{exercise.exercise_name}
-							</p>
-							{exercise.skipped && <Badge>Skipped</Badge>}
-						</div>
-						{(exercise.sets || []).length ? (
-							<div className="mt-1.5 space-y-1">
-								{exercise.sets.map((set) => (
-									<p key={set.id} className="text-muted text-xs">
-										Set {set.index}:{' '}
-										{exercise.track_mode === 'hold'
-											? `${set.hold_seconds}s hold`
-											: `${set.reps} reps`}
-										{set.load_kg ? ` @ ${Number(set.load_kg)} kg` : ''} ·{' '}
-										{formatDurationSeconds(set.work_seconds)} work
-										{set.rest_seconds ? ` · ${formatDurationSeconds(set.rest_seconds)} rest` : ''}
-										{set.rpe ? ` · RPE ${set.rpe}` : ''}
-										{set.skipped ? ' · skipped' : ''}
-									</p>
-								))}
+			<div className="grid grid-cols-3 gap-1">
+				{(session.exercises || []).map((exercise) => {
+					const sets = exercise.sets || [];
+					return (
+						<div key={exercise.id} className="border-line rounded-md border px-3 py-2">
+							<div className="flex items-center gap-2">
+								<p className="text-fg min-w-0 flex-1 truncate text-sm font-medium">
+									{exercise.exercise_name}
+								</p>
+								{exercise.skipped && <Badge>Skipped</Badge>}
 							</div>
-						) : (
-							<p className="text-muted mt-1 text-xs">No sets logged.</p>
-						)}
-					</div>
-				))}
+							{sets.length ? (
+								<div className="mt-1.5 space-y-1.5">
+									{sets.map((set) => (
+										<div key={set.id} className="space-y-1">
+											<p className="text-muted text-xs">
+												Set {set.index}:{' '}
+												{exercise.track_mode === 'hold'
+													? `${set.hold_seconds}s hold`
+													: `${set.reps} reps`}
+												{set.load_kg ? ` @ ${Number(set.load_kg)} kg` : ''}
+												{set.rpe ? ` · RPE ${set.rpe}` : ''}
+												{set.skipped ? ' · skipped' : ''}
+											</p>
+											<div className="flex items-center gap-1.5">
+												<DurationInput
+													seconds={set.work_seconds}
+													label="Work"
+													disabled={busy}
+													onCommit={(seconds) =>
+														saveTiming(exercise, set, 'work_seconds', seconds).catch(() => {})
+													}
+												/>
+												<DurationInput
+													seconds={set.rest_seconds}
+													label="Rest"
+													disabled={busy}
+													onCommit={(seconds) =>
+														saveTiming(exercise, set, 'rest_seconds', seconds).catch(() => {})
+													}
+												/>
+												<button
+													type="button"
+													onClick={() => removeSet(exercise, set).catch(() => {})}
+													disabled={busy}
+													className="text-muted hover:text-danger cursor-pointer p-1 disabled:opacity-50"
+													aria-label={`Remove set ${set.index}`}
+												>
+													<Trash2 size={13} />
+												</button>
+											</div>
+										</div>
+									))}
+								</div>
+							) : (
+								<p className="text-muted mt-1 text-xs">No sets logged.</p>
+							)}
+							<Button
+								size="sm"
+								variant="ghost"
+								className="mt-1.5 h-7 px-2 text-xs"
+								disabled={busy || sets.length >= MAX_SETS}
+								onClick={() => addSet(exercise).catch(() => {})}
+							>
+								<Plus size={12} />
+								Add set
+							</Button>
+						</div>
+					);
+				})}
 			</div>
 			{session.notes && <p className="text-muted mt-3 text-sm">“{session.notes}”</p>}
 		</Modal>
@@ -127,6 +262,7 @@ export default function HistoryPage() {
 	const { data: stats } = useTrainingStats(28);
 	const { data: series } = useTrainingSeries(30);
 	const { data: heatmap } = useTrainingHeatmap(84);
+	const sickToggle = useToggleSickDay();
 	const [page, setPage] = useState(1);
 	const { data, isLoading, isFetching } = sessionsApi.useList({
 		page,
@@ -227,7 +363,13 @@ export default function HistoryPage() {
 				<Card>
 					<CardHeader title="Training days" subtitle="Last 12 weeks" />
 					<CardBody className="flex justify-center">
-						<CompactActivityTile timeline={heatmap?.timeline || []} weeks={12} />
+						<CompactActivityTile
+							timeline={heatmap?.timeline || []}
+							weeks={12}
+							emptyLabel="No workout"
+							showSchedule
+							onToggleSick={sickToggle.toggle}
+						/>
 					</CardBody>
 				</Card>
 			</div>
@@ -235,7 +377,9 @@ export default function HistoryPage() {
 			<Card>
 				<CardHeader
 					title="Workouts"
-					subtitle={totalCount ? `${totalCount} total` : 'No workouts yet'}
+					subtitle={
+						totalCount ? `${totalCount} total · click a session to edit sets` : 'No workouts yet'
+					}
 				/>
 				<CardBody className={isFetching ? 'space-y-2 opacity-70' : 'space-y-2'}>
 					{!sessions.length && (
@@ -283,7 +427,7 @@ export default function HistoryPage() {
 				</CardBody>
 			</Card>
 
-			<SessionDetail session={detail} onClose={() => setDetail(null)} />
+			<SessionDetail session={detail} onClose={() => setDetail(null)} onSessionChange={setDetail} />
 
 			<Modal
 				open={deleteTarget != null}

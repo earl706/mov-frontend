@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Dumbbell, History, ListChecks, Ruler, Scale, Search } from 'lucide-react';
+import { Dumbbell, History, ListChecks, Ruler, Scale, Search, Target } from 'lucide-react';
 
 import { get } from '../../lib/api';
 import { useUIStore } from '../../stores/uiStore';
@@ -11,6 +11,7 @@ const TYPE_META = {
 	exercise: { icon: Dumbbell, route: () => '/exercises' },
 	routine: { icon: ListChecks, route: (result) => `/routines/${result.id}` },
 	session: { icon: History, route: () => '/history' },
+	goal: { icon: Target, route: () => '/goals' },
 	weight: { icon: Scale, route: () => '/body' },
 	measurement: { icon: Ruler, route: () => '/body' }
 };
@@ -55,7 +56,7 @@ function PaletteDialog({ onClose }) {
 					autoFocus
 					value={term}
 					onChange={(e) => setTerm(e.target.value)}
-					placeholder="Search exercises, routines, workouts, weigh-ins…"
+					placeholder="Search exercises, routines, workouts, goals, weigh-ins…"
 					className="text-fg placeholder:text-muted h-14 flex-1 bg-transparent outline-none"
 				/>
 				{isFetching && <span className="text-muted text-xs">…</span>}

@@ -431,6 +431,10 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 		timer.phase === 'rest_exercise' && timer.pendingNextExercise
 			? timer.pendingNextExercise
 			: sessionExercise;
+	const hintExercise =
+		(timer.phase === 'rest_exercise' && timer.pendingNextExercise
+			? session?.exercises?.find((row) => row.id === timer.pendingNextExercise.id)
+			: sessionExercise) || sessionExercise;
 
 	const markerExerciseId =
 		timer.phase === 'rest_exercise' && timer.pendingNextExercise
@@ -497,6 +501,9 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 					}
 				/>
 				<CardBody className="space-y-4">
+					{hintExercise?.progression?.suggestion && (
+						<p className="text-muted text-center text-xs">{hintExercise.progression.suggestion}</p>
+					)}
 					<div className="flex flex-col items-center gap-3">
 						<SessionSetMarkers
 							exercises={session?.exercises || []}

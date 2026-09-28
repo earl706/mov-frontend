@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { get, patch, post, put } from './api';
+import { get, patch, post, put, del } from './api';
 import { createResourceHooks } from '../hooks/useResource';
 import { useLocalCalendarDate } from '../hooks/useLocalCalendarDate';
 import { toast } from '../stores/toastStore';
@@ -11,9 +11,10 @@ export const notificationsApi = createResourceHooks('notifications', '/notificat
 export const weightEntriesApi = createResourceHooks('weight-entries', '/weight-entries/');
 export const measurementsApi = createResourceHooks('body-measurements', '/body-measurements/');
 export const progressPhotosApi = createResourceHooks('progress-photos', '/progress-photos/');
+export const goalsApi = createResourceHooks('goals', '/goals/');
 
 /** Every mutation that changes training data touches these caches. */
-const WORKOUT_KEYS = ['workout-sessions', 'routines', 'dashboard', 'training'];
+const WORKOUT_KEYS = ['workout-sessions', 'routines', 'dashboard', 'training', 'goals'];
 
 function invalidateWorkouts(qc) {
 	WORKOUT_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: [key] }));
@@ -110,6 +111,14 @@ export function useExerciseHistory(id) {
 	});
 }
 
+export function useGoalsProgress() {
+	const localDate = useLocalCalendarDate();
+	return useQuery({
+		queryKey: ['goals', 'progress', localDate],
+		queryFn: () => get('/goals/progress/')
+	});
+}
+
 export function useStartSession() {
 	const qc = useQueryClient();
 	return useMutation({
@@ -129,6 +138,16 @@ export function useLogSet() {
 		mutationFn: ({ sessionId, ...body }) => post(`/workout-sessions/${sessionId}/log-set/`, body),
 		onSuccess: () => invalidateWorkouts(qc),
 		onError: () => toast.error('Could not save that set.')
+	});
+}
+
+export function useDeleteSet() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({ sessionId, ...body }) =>
+			post(`/workout-sessions/${sessionId}/delete-set/`, body),
+		onSuccess: () => invalidateWorkouts(qc),
+		onError: () => toast.error('Could not remove that set.')
 	});
 }
 
@@ -170,6 +189,37 @@ export function useAbandonSession() {
 		onSuccess: () => invalidateWorkouts(qc),
 		onError: () => toast.error('Could not discard the workout.')
 	});
+}
+
+export function useMarkSick() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (date) => post('/day-marks/', { date }),
+		onSuccess: () => invalidateWorkouts(qc),
+		onError: () => toast.error('Could not mark this day sick.')
+	});
+}
+
+export function useClearSick() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (date) => del(`/day-marks/${date}/`),
+		onSuccess: () => invalidateWorkouts(qc),
+		onError: () => toast.error('Could not clear the sick day.')
+	});
+}
+
+export function useToggleSickDay() {
+	const markSick = useMarkSick();
+	const clearSick = useClearSick();
+	return {
+		toggle: (day) => {
+			if (!day?.date) return;
+			if (day.sick) clearSick.mutate(day.date);
+			else markSick.mutate(day.date);
+		},
+		isPending: markSick.isPending || clearSick.isPending
+	};
 }
 
 // -----------------------------------------------------------------------------
