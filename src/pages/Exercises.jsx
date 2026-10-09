@@ -259,6 +259,8 @@ function HistoryModal({ exercise, onClose }) {
 		return day.toISOString().slice(0, 10);
 	};
 
+	if (!exercise) return null;
+
 	const saveLoad = (e) => {
 		e.preventDefault();
 		const body = {
@@ -518,7 +520,7 @@ export default function ExercisesPage() {
 					onClose={() => setFormOpen(false)}
 				/>
 			)}
-			<HistoryModal exercise={historyFor} onClose={() => setHistoryFor(null)} />
+			{historyFor && <HistoryModal exercise={historyFor} onClose={() => setHistoryFor(null)} />}
 		</div>
 	);
 }

@@ -5,6 +5,8 @@ import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns';
 import {
 	Area,
 	AreaChart,
+	Bar,
+	BarChart,
 	Cell,
 	Pie,
 	PieChart,
@@ -30,7 +32,6 @@ import {
 import { CompactActivityTile } from '../components/analytics/ActivityHeatmap';
 import { SetWorkRestBarChart } from '../components/analytics/SetWorkRestBarChart';
 import { PageHeader } from '../components/layout/PageHeader';
-import { DashboardGoalsCard } from './Goals';
 import {
 	Button,
 	Card,
@@ -54,6 +55,7 @@ import {
 	useToggleSickDay,
 	useTrainingHeatmap,
 	useTrainingSeries,
+	useWeekdayFrequency,
 	useWeightHeatmap,
 	useWeightProfile,
 	useWeightSeries,
@@ -565,6 +567,80 @@ function WeightLoggedDaysCard({ weightHeatmap }) {
 	);
 }
 
+function WeekdayFrequencyTooltip({ active, payload }) {
+	if (!active || !payload?.length) return null;
+	const row = payload[0]?.payload;
+	if (!row) return null;
+	const empty = !row.elapsed_weeks;
+	return (
+		<div style={chartTooltipStyle} className="px-2.5 py-2">
+			<p className="text-fg text-xs font-medium">{row.label}</p>
+			<p className="text-muted text-[11px]">
+				{empty
+					? 'No completed sessions yet'
+					: `${row.trained_weeks}/${row.elapsed_weeks} week${row.elapsed_weeks === 1 ? '' : 's'}`}
+			</p>
+			{empty ? null : (
+				<p className="text-muted text-[11px] tabular-nums">{Number(row.rate).toFixed(2)}</p>
+			)}
+		</div>
+	);
+}
+
+/** Seven Mon–Sun bars: trained weeks / weeks since that weekday's first session. */
+function WeekdayFrequencyCard({ days }) {
+	const data = days || [];
+	const hasHistory = data.some((row) => row.elapsed_weeks > 0);
+
+	return (
+		<Card className="flex min-h-0 flex-col">
+			<CardHeader className={compactHeader} title="Frequency" />
+			<CardBody className={`${compactBody} flex min-h-0 flex-1 flex-col py-1`}>
+				{hasHistory ? (
+					<div className={`${chartHeight} min-h-0 flex-1`}>
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+								<XAxis
+									dataKey="label"
+									tick={{ fill: 'var(--muted)', fontSize: 10 }}
+									axisLine={false}
+									tickLine={false}
+									interval={0}
+								/>
+								<YAxis
+									domain={[0, 1]}
+									ticks={[0, 0.5, 1]}
+									width={28}
+									tick={{ fill: 'var(--muted)', fontSize: 9 }}
+									axisLine={false}
+									tickLine={false}
+									tickFormatter={(v) => (v === 0 || v === 1 ? String(v) : Number(v).toFixed(1))}
+								/>
+								<Tooltip
+									content={<WeekdayFrequencyTooltip />}
+									cursor={{ fill: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}
+								/>
+								<Bar
+									dataKey="rate"
+									name="Frequency"
+									fill="var(--primary)"
+									maxBarSize={28}
+									radius={[3, 3, 0, 0]}
+									isAnimationActive={false}
+								/>
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+				) : (
+					<p className="text-muted flex h-full items-center text-[10px] leading-snug">
+						Log workouts to see how consistently you train each weekday.
+					</p>
+				)}
+			</CardBody>
+		</Card>
+	);
+}
+
 const recentSetsHeader = 'items-center p-2 pb-0.5 lg:p-3 lg:pb-0';
 const recentSetsBody = 'p-2 pt-0 lg:p-3 lg:pt-0';
 
@@ -674,6 +750,7 @@ export default function Dashboard() {
 	const { data: recentSets } = useRecentSets(RECENT_SET_LIMIT);
 	const { data: recentSessions } = useRecentSessions(RECENT_SESSION_LIMIT);
 	const { data: goalsProgress } = useGoalsProgress();
+	const { data: weekdayFrequency } = useWeekdayFrequency();
 	const { data: rpeSessionsPage } = sessionsApi.useList({
 		status: 'completed',
 		page_size: RPE_SESSION_LIMIT
@@ -840,7 +917,7 @@ export default function Dashboard() {
 				>
 					<WeightTrendCard unit={weightUnit} chartData={weightChartData} stats={weightStats} />
 					<WeightLoggedDaysCard weightHeatmap={weightHeatmap} />
-					<DashboardGoalsCard goals={goalsProgress?.goals || []} unit={weightUnit} />
+					<WeekdayFrequencyCard days={weekdayFrequency?.days || []} />
 				</motion.div>
 
 				<motion.div variants={item} className="lg:shrink-0">

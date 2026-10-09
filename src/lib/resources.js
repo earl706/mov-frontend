@@ -52,6 +52,14 @@ export function useTrainingHeatmap(days = 84) {
 	});
 }
 
+export function useWeekdayFrequency() {
+	const localDate = useLocalCalendarDate();
+	return useQuery({
+		queryKey: ['training', 'weekday-frequency', localDate],
+		queryFn: () => get('/workout-sessions/weekday-frequency/')
+	});
+}
+
 export function useRecentSets(limit = 30) {
 	return useQuery({
 		queryKey: ['training', 'recent-sets', limit],
