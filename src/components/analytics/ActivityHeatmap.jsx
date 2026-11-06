@@ -40,8 +40,9 @@ function buildHeatmapWeeks(timeline) {
 	const byDate = new Map(timeline.map((d) => [d.date, d]));
 	const first = parseISO(timeline[0].date);
 	const last = parseISO(timeline[timeline.length - 1].date);
-	const gridStart = startOfWeek(first, { weekStartsOn: 0 });
-	const gridEnd = endOfWeek(last, { weekStartsOn: 0 });
+	// Columns are Mon→Sun to match the app's ISO calendar week.
+	const gridStart = startOfWeek(first, { weekStartsOn: 1 });
+	const gridEnd = endOfWeek(last, { weekStartsOn: 1 });
 	const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
 	const weeks = [];
