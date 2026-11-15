@@ -491,9 +491,45 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 
 	return (
 		<>
-			<Card>
+			<Card className="relative">
+				{/* Compact Load / RPE / Skip — overlay on the whole card; out of flow. */}
+				<div className="[&_label]:text-muted absolute top-5 right-5 z-10 flex w-32 flex-col gap-1.5 [&_label]:text-[10px] [&_label]:font-medium">
+					<Input
+						label="Load"
+						type="number"
+						step="0.5"
+						min="0"
+						max="500"
+						value={timer.loadInput}
+						onChange={(e) => timer.setLoadInput(e.target.value)}
+						placeholder={timer.targetLoad || 'BW'}
+						className="px-2 py-1.5 text-xs"
+					/>
+					<Select
+						label="RPE"
+						value={timer.rpeInput}
+						onChange={(e) => timer.setRpeInput(e.target.value)}
+						className="px-2 py-1.5 text-xs"
+					>
+						<option value="">—</option>
+						{[5, 6, 7, 8, 9, 10].map((n) => (
+							<option key={n} value={n}>
+								{n}
+							</option>
+						))}
+					</Select>
+					<Button
+						variant="ghost"
+						size="sm"
+						className="h-8 w-full justify-center text-xs"
+						onClick={() => submitSet({ skipped: true })}
+						loading={logging}
+						disabled={restOrAlarm || undoing}
+					>
+						Skip
+					</Button>
+				</div>
 				<CardHeader
-					className="pr-36"
 					title={headerExercise.exercise_name}
 					subtitle={
 						timer.phase === 'rest_exercise'
@@ -501,45 +537,7 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 							: `Set ${timer.setIndex} of ${sessionExercise.planned_sets} · ${describePrescription(sessionExercise)}`
 					}
 				/>
-				<CardBody className="relative space-y-4 pr-36">
-					{/* Compact Load / RPE / Skip — top-right of body; pr-36 reserves the lane. */}
-					<div className="[&_label]:text-muted absolute top-0 right-5 z-10 flex w-32 flex-col gap-1.5 [&_label]:text-[10px] [&_label]:font-medium">
-						<Input
-							label="Load"
-							type="number"
-							step="0.5"
-							min="0"
-							max="500"
-							value={timer.loadInput}
-							onChange={(e) => timer.setLoadInput(e.target.value)}
-							placeholder={timer.targetLoad || 'BW'}
-							className="px-2 py-1.5 text-xs"
-						/>
-						<Select
-							label="RPE"
-							value={timer.rpeInput}
-							onChange={(e) => timer.setRpeInput(e.target.value)}
-							className="px-2 py-1.5 text-xs"
-						>
-							<option value="">—</option>
-							{[5, 6, 7, 8, 9, 10].map((n) => (
-								<option key={n} value={n}>
-									{n}
-								</option>
-							))}
-						</Select>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-8 w-full justify-center text-xs"
-							onClick={() => submitSet({ skipped: true })}
-							loading={logging}
-							disabled={restOrAlarm || undoing}
-						>
-							Skip
-						</Button>
-					</div>
-
+				<CardBody className="space-y-4">
 					{hintExercise?.progression?.suggestion && (
 						<p className="text-muted text-center text-xs">{hintExercise.progression.suggestion}</p>
 					)}
