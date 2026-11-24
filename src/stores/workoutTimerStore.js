@@ -60,6 +60,8 @@ const INITIAL = {
 	restEndAt: null,
 	restStartedAt: null,
 	restAccumulated: 0,
+	// When a rest countdown is paused via display override; null while ticking.
+	restPausedRemaining: null,
 	// Rest already taken before the current set began. Rest between sets ends
 	// before the next set is logged, so it rides along on that set's payload.
 	carriedRestSeconds: 0,
@@ -203,6 +205,7 @@ export function selectPauseSeconds(s) {
 
 /** Seconds left on whichever rest countdown is active, else 0. */
 export function selectRestRemaining(s) {
+	if (s.restPausedRemaining != null) return Math.max(0, s.restPausedRemaining);
 	if (s.restEndAt == null) return 0;
 	return Math.max(0, Math.ceil((s.restEndAt - nowMs()) / 1000));
 }
@@ -222,7 +225,9 @@ export function selectSessionActive(s) {
 
 /** True while the clock is genuinely moving, for topbar/nav affordances. */
 export function selectTimerRunning(s) {
-	if (REST_PHASES.has(s.phase)) return s.restEndAt != null;
+	if (REST_PHASES.has(s.phase)) {
+		return s.restEndAt != null && s.restPausedRemaining == null;
+	}
 	return s.running && s.phase === 'work';
 }
 
@@ -274,6 +279,7 @@ export const useWorkoutTimerStore = create(
 					restEndAt: null,
 					restStartedAt: options.alarmKind === 'rest_exercise' ? nowMs() : null,
 					restAccumulated: 0,
+					restPausedRemaining: null,
 					carriedRestSeconds: options.carriedRestSeconds ?? 0,
 					repsDone: 0,
 					rpeInput: '',
@@ -321,6 +327,7 @@ export const useWorkoutTimerStore = create(
 					restEndAt: null,
 					restStartedAt: null,
 					restAccumulated: rested,
+					restPausedRemaining: null,
 					carriedRestSeconds: carried,
 					pauseAccumulated: pauseBanked,
 					pauseStartedAt: null,
@@ -340,6 +347,70 @@ export const useWorkoutTimerStore = create(
 					workStartedAt: null,
 					pauseStartedAt: nowMs()
 				});
+			},
+
+			/**
+			 * Override the face value of the currently running timer, then stay
+			 * paused until Start/Resume. Work (count-up) sets elapsed; hold and
+			 * rest set remaining. No-op when the clock is not running.
+			 */
+			overrideRunningTimer: (seconds) => {
+				const s = get();
+				const safe = Math.max(0, Math.floor(Number(seconds) || 0));
+				if (!selectTimerRunning(s)) return false;
+
+				if (s.phase === 'work' && s.running) {
+					const workAccumulated =
+						s.trackMode === 'hold' ? Math.max(0, (s.plannedHoldSeconds || 0) - safe) : safe;
+					set({
+						running: false,
+						workStartedAt: null,
+						workAccumulated,
+						pauseStartedAt: nowMs(),
+						restPausedRemaining: null
+					});
+					return true;
+				}
+
+				if (REST_PHASES.has(s.phase) && s.restEndAt != null) {
+					const served = elapsedSince(s.restStartedAt);
+					if (s.phase === 'rest_rep') {
+						set({
+							restAccumulated: s.restAccumulated + served,
+							restStartedAt: null,
+							restEndAt: null,
+							restPausedRemaining: safe,
+							alarmActive: false,
+							alarmKind: null
+						});
+					} else {
+						set({
+							carriedRestSeconds: s.carriedRestSeconds + served,
+							restStartedAt: null,
+							restEndAt: null,
+							restPausedRemaining: safe,
+							alarmActive: false,
+							alarmKind: null
+						});
+					}
+					return true;
+				}
+				return false;
+			},
+
+			/** Resume a rest countdown frozen by overrideRunningTimer. */
+			resumePausedRest: () => {
+				const s = get();
+				if (!REST_PHASES.has(s.phase) || s.restPausedRemaining == null) return false;
+				const remaining = Math.max(0, s.restPausedRemaining);
+				set({
+					restPausedRemaining: null,
+					restStartedAt: nowMs(),
+					restEndAt: remaining > 0 ? nowMs() + remaining * 1000 : nowMs(),
+					alarmActive: false,
+					alarmKind: null
+				});
+				return true;
 			},
 
 			/**
@@ -577,6 +648,7 @@ export const useWorkoutTimerStore = create(
 						restEndAt: null,
 						restStartedAt: null,
 						restAccumulated: 0,
+						restPausedRemaining: null,
 						repsDone: 0,
 						alarmActive: false,
 						alarmKind: null,
@@ -590,6 +662,7 @@ export const useWorkoutTimerStore = create(
 					workStartedAt: null,
 					workAccumulated: 0,
 					restAccumulated: 0,
+					restPausedRemaining: null,
 					repsDone: 0,
 					restStartedAt: nowMs(),
 					restEndAt: nowMs() + s.restSetSeconds * 1000,
@@ -617,6 +690,7 @@ export const useWorkoutTimerStore = create(
 					workStartedAt: null,
 					workAccumulated: 0,
 					restAccumulated: 0,
+					restPausedRemaining: null,
 					carriedRestSeconds: 0,
 					repsDone: 0,
 					restStartedAt: nowMs(),
@@ -860,6 +934,7 @@ export const useWorkoutTimerStore = create(
 				restEndAt: s.restEndAt,
 				restStartedAt: s.restStartedAt,
 				restAccumulated: s.restAccumulated,
+				restPausedRemaining: s.restPausedRemaining,
 				carriedRestSeconds: s.carriedRestSeconds,
 				repsDone: s.repsDone,
 				loadInput: s.loadInput,

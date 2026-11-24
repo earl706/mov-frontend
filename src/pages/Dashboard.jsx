@@ -5,11 +5,11 @@ import { eachDayOfInterval, format, parseISO, subDays } from 'date-fns';
 import {
 	Area,
 	AreaChart,
-	Bar,
-	BarChart,
-	Cell,
-	Pie,
-	PieChart,
+	PolarAngleAxis,
+	PolarGrid,
+	PolarRadiusAxis,
+	Radar,
+	RadarChart,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
@@ -70,8 +70,8 @@ const item = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 const compactHeader = 'p-3 pb-1 lg:p-2.5 lg:pb-0.5';
 const compactBody = 'p-3 pt-0 lg:p-2.5 lg:pt-0';
 const chartHeight = 'h-full min-h-36';
-/** CompactActivityTile: 12px cells + 2px gaps → ~500px wide at 39 weeks. */
-const HEATMAP_WEEKS = 39;
+/** CompactActivityTile: 12px cells + 2px gaps → ~364px wide at 26 weeks. */
+const HEATMAP_WEEKS = 26;
 const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
 const CHART_DAYS = 30;
 const RECENT_SET_LIMIT = 120;
@@ -84,13 +84,6 @@ const MOVEMENT_LABELS = {
 	legs: 'Legs',
 	core: 'Core',
 	full_body: 'Full body'
-};
-const MOVEMENT_COLORS = {
-	push: 'var(--primary)',
-	pull: 'var(--accent)',
-	legs: 'var(--success)',
-	core: 'var(--warning)',
-	full_body: 'var(--muted)'
 };
 
 const chartTooltipStyle = {
@@ -446,16 +439,19 @@ function TodayCard({ training, activeSession, suggested, todayIsRest, todayIsSic
 	);
 }
 
-/** Compact donut of logged sets by movement group (last 30 days). */
-function MovementDonut({ groups, size = 72 }) {
-	const slices = useMemo(() => {
-		return (groups || []).map((row) => ({
+/** Radar of logged sets by movement group (last 30 days). */
+function MovementRadar({ groups }) {
+	const data = useMemo(() => {
+		const rows = groups || [];
+		const maxSets = Math.max(1, ...rows.map((row) => row.sets || 0));
+		return rows.map((row) => ({
 			...row,
 			label: MOVEMENT_LABELS[row.group] || row.group,
-			color: MOVEMENT_COLORS[row.group] || 'var(--muted)'
+			value: row.sets || 0,
+			maxSets
 		}));
 	}, [groups]);
-	const total = slices.reduce((sum, row) => sum + (row.sets || 0), 0);
+	const total = data.reduce((sum, row) => sum + row.value, 0);
 
 	if (!total) {
 		return (
@@ -466,48 +462,41 @@ function MovementDonut({ groups, size = 72 }) {
 	}
 
 	return (
-		<div className="flex h-full w-full items-center justify-center">
-			<div className="flex items-center gap-10 pt-5">
-				<div className="shrink-0" style={{ width: size, height: size }}>
-					<ResponsiveContainer width="100%" height="100%">
-						<PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-							<Pie
-								data={slices.filter((row) => row.sets > 0)}
-								dataKey="sets"
-								nameKey="label"
-								cx="50%"
-								cy="50%"
-								innerRadius={size * 0.32}
-								outerRadius={size / 2 - 1}
-								stroke="var(--surface)"
-								strokeWidth={1}
-								isAnimationActive={false}
-							>
-								{slices
-									.filter((row) => row.sets > 0)
-									.map((row) => (
-										<Cell key={row.group} fill={row.color} />
-									))}
-							</Pie>
-						</PieChart>
-					</ResponsiveContainer>
-				</div>
-				<ul
-					className="shrink-0 space-y-0.5 text-[10px] leading-tight"
-					aria-label="Sets by movement group, last 30 days"
-				>
-					{slices.map((row) => (
-						<li key={row.group} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5">
-							<span
-								className="h-1.5 w-1.5 shrink-0 rounded-full"
-								style={{ background: row.color }}
-							/>
-							<span className="text-muted whitespace-nowrap">{row.label}</span>
-							<span className="text-fg tabular-nums">{Math.round((row.sets / total) * 100)}%</span>
-						</li>
-					))}
-				</ul>
-			</div>
+		<div
+			className={`${chartHeight} min-h-0 flex-1`}
+			aria-label="Sets by movement group, last 30 days"
+		>
+			<ResponsiveContainer width="100%" height="100%">
+				<RadarChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 16 }}>
+					<PolarGrid stroke="var(--line)" />
+					<PolarAngleAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 10 }} />
+					<PolarRadiusAxis domain={[0, 'auto']} tick={false} axisLine={false} />
+					<Tooltip
+						content={({ active, payload }) => {
+							if (!active || !payload?.length) return null;
+							const row = payload[0]?.payload;
+							if (!row) return null;
+							return (
+								<div style={chartTooltipStyle} className="px-2.5 py-2">
+									<p className="text-fg text-xs font-medium">{row.label}</p>
+									<p className="text-muted text-[11px] tabular-nums">
+										{row.value} set{row.value === 1 ? '' : 's'} ·{' '}
+										{Math.round((row.value / total) * 100)}%
+									</p>
+								</div>
+							);
+						}}
+					/>
+					<Radar
+						name="Sets"
+						dataKey="value"
+						stroke="var(--primary)"
+						fill="var(--primary)"
+						fillOpacity={0.28}
+						isAnimationActive={false}
+					/>
+				</RadarChart>
+			</ResponsiveContainer>
 		</div>
 	);
 }
@@ -587,7 +576,7 @@ function WeekdayFrequencyTooltip({ active, payload }) {
 	);
 }
 
-/** Seven Mon–Sun bars: trained weeks / weeks since that weekday's first session. */
+/** Mon–Sun radar: trained weeks / weeks since that weekday's first session. */
 function WeekdayFrequencyCard({ days }) {
 	const data = days || [];
 	const hasHistory = data.some((row) => row.elapsed_weeks > 0);
@@ -599,36 +588,20 @@ function WeekdayFrequencyCard({ days }) {
 				{hasHistory ? (
 					<div className={`${chartHeight} min-h-0 flex-1`}>
 						<ResponsiveContainer width="100%" height="100%">
-							<BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-								<XAxis
-									dataKey="label"
-									tick={{ fill: 'var(--muted)', fontSize: 10 }}
-									axisLine={false}
-									tickLine={false}
-									interval={0}
-								/>
-								<YAxis
-									domain={[0, 1]}
-									ticks={[0, 0.5, 1]}
-									width={28}
-									tick={{ fill: 'var(--muted)', fontSize: 9 }}
-									axisLine={false}
-									tickLine={false}
-									tickFormatter={(v) => (v === 0 || v === 1 ? String(v) : Number(v).toFixed(1))}
-								/>
-								<Tooltip
-									content={<WeekdayFrequencyTooltip />}
-									cursor={{ fill: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}
-								/>
-								<Bar
-									dataKey="rate"
+							<RadarChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 16 }}>
+								<PolarGrid stroke="var(--line)" />
+								<PolarAngleAxis dataKey="label" tick={{ fill: 'var(--muted)', fontSize: 10 }} />
+								<PolarRadiusAxis domain={[0, 1]} tick={false} axisLine={false} />
+								<Tooltip content={<WeekdayFrequencyTooltip />} />
+								<Radar
 									name="Frequency"
+									dataKey="rate"
+									stroke="var(--primary)"
 									fill="var(--primary)"
-									maxBarSize={28}
-									radius={[3, 3, 0, 0]}
+									fillOpacity={0.28}
 									isAnimationActive={false}
 								/>
-							</BarChart>
+							</RadarChart>
 						</ResponsiveContainer>
 					</div>
 				) : (
@@ -715,17 +688,12 @@ function RecentSetsPanel({ setsData, sessionsData }) {
 	);
 }
 
-function MovementCard({ groups, dense = false }) {
+function MovementCard({ groups }) {
 	return (
-		<Card className="flex min-h-0 flex-col overflow-hidden lg:h-full">
-			<CardBody
-				className={
-					dense
-						? 'flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden p-1'
-						: `${compactBody} flex w-full flex-1 items-center justify-center`
-				}
-			>
-				<MovementDonut groups={groups} size={dense ? 80 : 88} />
+		<Card className="flex min-h-0 flex-col overflow-hidden">
+			<CardHeader className={compactHeader} title="Movement" />
+			<CardBody className={`${compactBody} flex min-h-0 flex-1 flex-col py-1`}>
+				<MovementRadar groups={groups} />
 			</CardBody>
 		</Card>
 	);
@@ -814,7 +782,7 @@ export default function Dashboard() {
 			>
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-2 lg:h-24 lg:max-h-24 lg:shrink-0 lg:grid-cols-4 lg:gap-2 lg:overflow-hidden"
+					className="grid grid-cols-1 gap-2 lg:h-24 lg:max-h-24 lg:shrink-0 lg:grid-cols-3 lg:gap-2 lg:overflow-hidden"
 				>
 					<div className="min-h-0 min-w-0 lg:h-full">
 						<TodayCard
@@ -871,13 +839,11 @@ export default function Dashboard() {
 							</div>
 						</CardBody>
 					</Card>
-
-					<MovementCard dense groups={data.muscle_groups} />
 				</motion.div>
 
 				<motion.div
 					variants={item}
-					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-2 lg:gap-2"
+					className="grid grid-cols-1 gap-4 lg:h-[190px] lg:max-h-[190px] lg:shrink-0 lg:grid-cols-3 lg:gap-2"
 				>
 					<Card className="flex min-h-0 flex-col">
 						<CardHeader className={compactHeader} title="Volume" />
@@ -909,6 +875,8 @@ export default function Dashboard() {
 							/>
 						</CardBody>
 					</Card>
+
+					<MovementCard groups={data.muscle_groups} />
 				</motion.div>
 
 				<motion.div

@@ -31,7 +31,7 @@ import { SessionIntensityBadge } from '../components/workouts/MildBadge';
 import { WorkoutSummary } from '../components/workouts/WorkoutSummary';
 import { useWorkoutAutoAdvance } from '../hooks/useWorkoutAutoAdvance';
 import { cn, formatDurationCompact } from '../lib/format';
-import { formatTimerDisplay } from '../lib/timerFormat';
+import { formatTimerDisplay, parseTimerInput, sanitizeTimerInput } from '../lib/timerFormat';
 import {
 	routinesApi,
 	useAbandonSession,
@@ -56,6 +56,7 @@ import {
 	selectPauseSeconds,
 	selectRestRemaining,
 	selectResting,
+	selectTimerRunning,
 	selectWorkSeconds,
 	useWorkoutTimerStore
 } from '../stores/workoutTimerStore';
@@ -401,17 +402,23 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 	const displaySeconds = useWorkoutTimerStore(selectDisplaySeconds);
 	const restRemaining = useWorkoutTimerStore(selectRestRemaining);
 	const resting = useWorkoutTimerStore(selectResting);
+	const clockRunning = useWorkoutTimerStore(selectTimerRunning);
 	const undoAvailable = useWorkoutTimerStore(selectCanUndoLastSet);
 	const revertAvailable = useWorkoutTimerStore(selectCanRevertLastRest);
 	const [undoOpen, setUndoOpen] = useState(false);
 	const [revertOpen, setRevertOpen] = useState(false);
+	const [editingTime, setEditingTime] = useState(false);
+	const [timeDraft, setTimeDraft] = useState('');
 	const alarmActive = timer.alarmActive;
 	const working = timer.phase === 'work';
+	const restPaused = resting && timer.restPausedRemaining != null;
 	const restOrAlarm = resting || alarmActive;
 	const restTotal =
 		timer.restEndAt != null && timer.restStartedAt != null
 			? (timer.restEndAt - timer.restStartedAt) / 1000
-			: 0;
+			: restPaused
+				? Math.max(restRemaining, 1)
+				: 0;
 	const restPct = restTotal > 0 ? (restRemaining / restTotal) * 100 : 0;
 	const ringTone = alarmActive ? 'danger' : resting ? 'success' : 'primary';
 
@@ -458,6 +465,25 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 	const confirmRevert = () => {
 		useWorkoutTimerStore.getState().revertLastRest();
 		setRevertOpen(false);
+	};
+
+	const beginTimeEdit = () => {
+		if (!clockRunning || editingTime || undoing || logging) return;
+		setTimeDraft(formatTimerDisplay(displaySeconds));
+		setEditingTime(true);
+	};
+
+	const cancelTimeEdit = () => {
+		setEditingTime(false);
+		setTimeDraft('');
+	};
+
+	const commitTimeEdit = () => {
+		if (!editingTime) return;
+		const seconds = parseTimerInput(timeDraft);
+		useWorkoutTimerStore.getState().overrideRunningTimer(seconds);
+		setEditingTime(false);
+		setTimeDraft('');
 	};
 
 	// Space toggles Start set / Stop set (ignored while typing in fields).
@@ -553,17 +579,44 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 							restPct={restPct}
 							restTone={ringTone}
 						>
-							<p
-								className={cn(
-									'font-mono text-5xl font-semibold tabular-nums transition-colors duration-300 sm:text-6xl',
-									alarmActive && 'text-danger animate-pulse',
-									!alarmActive && resting && 'text-success',
-									!alarmActive && !resting && timer.running && 'text-primary',
-									!alarmActive && !resting && !timer.running && 'text-fg'
-								)}
-							>
-								{formatTimerDisplay(displaySeconds)}
-							</p>
+							{editingTime ? (
+								<input
+									autoFocus
+									aria-label="Override timer"
+									value={timeDraft}
+									onChange={(e) => setTimeDraft(sanitizeTimerInput(e.target.value))}
+									onBlur={commitTimeEdit}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault();
+											commitTimeEdit();
+										}
+										if (e.key === 'Escape') {
+											e.preventDefault();
+											cancelTimeEdit();
+										}
+									}}
+									className="text-fg border-line bg-surface-2 focus:border-primary w-[7.5rem] rounded-md border px-2 py-1 text-center font-mono text-3xl font-semibold tabular-nums outline-none sm:w-40 sm:text-4xl"
+								/>
+							) : (
+								<button
+									type="button"
+									onClick={beginTimeEdit}
+									disabled={!clockRunning || undoing || logging}
+									title={clockRunning ? 'Click to override timer' : undefined}
+									className={cn(
+										'font-mono text-5xl font-semibold tabular-nums transition-colors duration-300 sm:text-6xl',
+										clockRunning && 'cursor-pointer hover:opacity-80',
+										!clockRunning && 'cursor-default',
+										alarmActive && 'text-danger animate-pulse',
+										!alarmActive && resting && 'text-success',
+										!alarmActive && !resting && timer.running && 'text-primary',
+										!alarmActive && !resting && !timer.running && 'text-fg'
+									)}
+								>
+									{formatTimerDisplay(displaySeconds)}
+								</button>
+							)}
 						</TimerRings>
 						<SessionTimingTotals session={session} />
 					</div>
@@ -614,7 +667,7 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 						</div>
 						<div className="relative h-10">
 							<AnimatePresence initial={false}>
-								{working && !timer.running ? (
+								{(working && !timer.running) || restPaused ? (
 									<motion.div
 										key="resume"
 										className="absolute inset-0"
@@ -625,7 +678,11 @@ function SetTimer({ session, sessionExercise, totals, onSetLogged }) {
 									>
 										<Button
 											variant="secondary"
-											onClick={timer.startSet}
+											onClick={() =>
+												restPaused
+													? useWorkoutTimerStore.getState().resumePausedRest()
+													: timer.startSet()
+											}
 											className="h-10 w-full justify-center"
 										>
 											<Play size={16} />

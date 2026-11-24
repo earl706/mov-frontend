@@ -638,4 +638,32 @@ describe('workoutTimerStore', () => {
 		expect(selectWorkSeconds(store())).toBe(13);
 		expect(selectPauseSeconds(store())).toBe(7);
 	});
+
+	it('overrides a running work timer then stays paused', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(12);
+		expect(store().overrideRunningTimer(90)).toBe(true);
+		expect(store().running).toBe(false);
+		expect(selectWorkSeconds(store())).toBe(90);
+		expect(selectDisplaySeconds(store())).toBe(90);
+		expect(store().overrideRunningTimer(30)).toBe(false);
+	});
+
+	it('overrides a rest countdown then resumes from the new remaining', () => {
+		store().loadSet(BARBELL_ROW, 1);
+		store().startSet();
+		tick(5);
+		store().captureUndoSnapshot();
+		expect(store().advanceAfterLog()).toBe('rest_set');
+		tick(20);
+		expect(selectRestRemaining(store())).toBe(70);
+		expect(store().overrideRunningTimer(45)).toBe(true);
+		expect(store().restEndAt).toBeNull();
+		expect(selectRestRemaining(store())).toBe(45);
+		expect(store().resumePausedRest()).toBe(true);
+		expect(selectRestRemaining(store())).toBe(45);
+		tick(10);
+		expect(selectRestRemaining(store())).toBe(35);
+	});
 });
